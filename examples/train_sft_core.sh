@@ -1,0 +1,17 @@
+TORCH_CUDA_ARCH_LIST="8.6;8.9" deepspeed --module loomtrain.scripts.train_sft \
+    --model-path /data/hf_models/Meta-Llama-3.1-8B-Instruct/ \
+    --dataset-paths /data/lcm_lab/jbb/datas/Skywork-Reward-80k-Formatted \
+    --prompt-key chat_template \
+    --response-key chosen \
+    --train-samples  800\
+    --val-samples 80 \
+    --max-length 128000 \
+    --packing-length 0 \
+    --micro-batch-size 1 \
+    --global-batch-size 16 \
+    --val-batch-size 8 \
+    --cp-size 1 \
+    --val-interval 20 \
+    --ckpt-interval 20 \
+    --weight-interval 20 \
+    --save-dir ./Test-Loom-Llama3.1 \

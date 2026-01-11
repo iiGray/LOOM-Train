@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=40.8.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Loom-Train"
+version = "0.1.0"
+description = "A Simple & Efficient Training Framework for Long-Context LLMs."
+authors = [
+    { name="iiGray", email="iiiigray19@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+
+
+
+dependencies = [
+    "psutil",
+    "pyyaml",
+    "pandas",
+    "tqdm",
+    "gpustat",
+    "nvitop",
+    "modelscope",     
+    "addict",
+    "tabulate",
+
+    "transformers==4.51.1",
+    "peft",              # lora
+    # flash-attn,
+    "openai",
+    "datasets",
+    "accelerate",
+
+    "nltk",
+    "seaborn",
+
+    "tenacity",
+    "wonderwords",
+    "nemo_toolkit[common]",
+
+    "rouge",
+    "jieba",
+    "fuzzywuzzy",      
+    "python-Levenshtein",
+
+    "fastchat",
+
+
+    #llm train
+    "deepspeed",
+    "wandb",
+    "chardet"
+]
+
+
+[tool.setuptools]
+package-dir = {"" = "."} 
+[tool.setuptools.packages.find]
+where = [".."]
+include = ["loomtrain"] 
+
+
+[project.scripts]
+"loomtrain-required-flash-attn" = "loomtrain.utils.help.cli.version:required_flash_attn"
