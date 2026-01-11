@@ -5,16 +5,27 @@
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+import os, sys
+from datetime import datetime
 
 project = 'LOOM-Train'
-copyright = '2026, Baibei Ji'
-author = 'Baibei Ji'
-release = '1.0'
-
+copyright = f'{datetime.now().year}, Gray'
+author = 'Gray'
+release = '1.0.0'
+version = '1.0'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = []
+extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode',
+    'sphinx.ext.githubpages',
+    'sphinx_rtd_theme',
+    'sphinx_copybutton',
+    'myst_parser',
+    'sphinx_design',
+]
 
 templates_path = ['_templates']
 exclude_patterns = []
@@ -26,3 +37,26 @@ exclude_patterns = []
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
+
+
+html_theme_options = {
+    'navigation_depth': 3,
+    'collapse_navigation': False,
+    'sticky_navigation': True,
+    'includehidden': True,
+    'titles_only': False,
+    'logo_only': False,
+}
+# html_logo = 
+
+myst_enable_extensions = [
+    "deflist",
+    "tasklist",
+    "html_image",
+]
+
+# Suppress specific warnings
+suppress_warnings = ['myst.header', 'myst.xref_missing', 'image.not_readable']
+# Copy button configuration
+copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
+copybutton_prompt_is_regexp = True
