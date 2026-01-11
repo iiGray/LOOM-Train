@@ -1,5 +1,10 @@
 # 🏗️ Loom-Train  
 *A Simple & Efficient Training Framework for Long-Context LLMs*
+<p align="center">
+  <a href="https://loom-train.readthedocs.io/en/latest/">
+    <img src="https://img.shields.io/badge/Documentation-docs-orange?style=plastic&logo=readthedocs" alt="Documentation">
+  </a>
+</p>
 
 > Optimized for scalability, memory efficiency, and seamless integration — built to unlock the full potential of long-context large language models.
 
