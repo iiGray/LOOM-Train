@@ -1,8 +1,10 @@
 site_name: LOOM-Train
 site_url: https://iigray.github.io/LOOM-Train/
-repo_url: https://iigray.github.io/LOOM-Train/
+repo_url: https://github.com/iiGray/LOOM-Train
 theme:
-  name: material
+  name: cinder
+
+
   features:
     - navigation.tabs   
     - navigation.sections   
@@ -28,8 +30,15 @@ theme:
         toggle:
           icon: material/brightness-4
           name: To light
-
-
+  
+extra:
+  alternate:
+    - name: English
+      link: /en/
+      lang: en
+    - name: 中文
+      link: /zh/
+      lang: zh
 
 plugins:
   - search
