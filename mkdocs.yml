@@ -12,7 +12,6 @@ theme:
     - search.highlight    
     - content.code.copy
     - navigation.tabs.sticky
-    - i18n.links
 
   palette:
       - media: "(prefers-color-scheme: light)"
