@@ -39,7 +39,9 @@ plugins:
       languages:
         - locale: zh
           name: 中文
-          build: true
+          default: true  
+          build: true 
         - locale: en
           name: English
-          build: true
+          default: false  
+          build: true 
