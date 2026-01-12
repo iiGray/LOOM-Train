@@ -18,7 +18,7 @@ theme:
       - media: "(prefers-color-scheme: light)"
         scheme: default
         primary: white
-        accent: indigo
+        accent: black
         toggle:
           icon: material/brightness-7
           name: To dark
