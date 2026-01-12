@@ -44,16 +44,19 @@ plugins:
           default: false  
           build: true 
           nav_translations:
-            Home: 首页
+            Getting_Started: 快速开始
             Installation: 安装
             
         - locale: zh
           name: 中文
           default: true  
           build: true 
+          nav_translations:
+            Getting_Started: Getting Started 
+            Installation: Installation
 
 
 nav:
-  - Home: index.md
+  - Getting_Started: index.md
   - Installation: Installation/page1.md
   
