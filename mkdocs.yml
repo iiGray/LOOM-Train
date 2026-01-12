@@ -43,6 +43,10 @@ plugins:
           name: English
           default: false  
           build: true 
+          nav_translations:
+            Home: 首页
+            Installation: 安装
+            
         - locale: zh
           name: 中文
           default: true  
@@ -50,6 +54,6 @@ plugins:
 
 
 nav:
-  - 首页: index.md
-  - Part A: 
-    - Getting Start/page1.md
+  - Home: index.md
+  - Installation: Installation/page1.md
+  
