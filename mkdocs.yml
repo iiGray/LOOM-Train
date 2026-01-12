@@ -39,3 +39,22 @@ extra:
     - name: 中文
       link: /zh/
       lang: zh
+
+
+plugins:
+  - search
+  - i18n:
+      default_language: zh
+      languages:
+        zh: 
+          name: 中文
+          build: true
+        en: 
+          name: English
+          build: true
+      # 开启后，右上角会自动出现切换语言的按钮
+      nav_translations:
+        en:
+          Home: Home
+        zh:
+          Home: 首页
