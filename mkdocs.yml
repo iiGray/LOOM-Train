@@ -3,8 +3,6 @@ site_url: https://iigray.github.io/LOOM-Train/
 repo_url: https://iigray.github.io/LOOM-Train/
 theme:
   name: cinder
-
-
   features:
     - navigation.tabs   
     - navigation.sections   
@@ -13,6 +11,8 @@ theme:
     - search.suggest  
     - search.highlight    
     - content.code.copy
+    - navigation.tabs.sticky
+    - i18n.links
 
   palette:
       - media: "(prefers-color-scheme: light)"
