@@ -1,8 +1,7 @@
 site_name: LOOM-Train
 site_url: https://iigray.github.io/LOOM-Train/
-repo_url: 
-theme:
-  name: cinder
+repo_url: https://iigray.github.io/LOOM-Train/
+
 
 
   features:
