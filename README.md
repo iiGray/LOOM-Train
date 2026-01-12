@@ -1,7 +1,7 @@
 # 🏗️ Loom-Train  
 *A Simple & Efficient Training Framework for Long-Context LLMs*
 <p align="center">
-  <a href="https://loom-train.readthedocs.io/en/latest/">
+  <a href="https://iigray.github.io/LOOM-Train/">
     <img src="https://img.shields.io/badge/Documentation-docs-orange?style=plastic&logo=readthedocs" alt="Documentation">
   </a>
 </p>
