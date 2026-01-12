@@ -47,3 +47,9 @@ plugins:
           name: 中文
           default: true  
           build: true 
+
+
+nav:
+  - 首页: index.md
+  - Part A: 
+    - Getting Start/page1.md
