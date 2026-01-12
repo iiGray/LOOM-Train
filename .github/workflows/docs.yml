@@ -15,7 +15,6 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          pip install mkdocs-static-i18n
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
@@ -27,4 +26,8 @@ jobs:
           restore-keys: |
             mkdocs-material-
       - run: pip install mkdocs-material 
+
+      - name: Install Dependencies
+        run: |
+          pip install mkdocs-material mkdocs-static-i18n
       - run: mkdocs gh-deploy --force
