@@ -37,15 +37,9 @@ plugins:
   - i18n:
       default_language: zh
       languages:
-        zh: 
+        - locale: zh
           name: 中文
           build: true
-        en: 
+        - locale: en
           name: English
           build: true
-          
-      nav_translations:
-        en:
-          Home: Home
-        zh:
-          Home: 首页
