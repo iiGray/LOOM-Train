@@ -30,15 +30,8 @@ theme:
         toggle:
           icon: material/brightness-4
           name: To light
-  
-extra:
-  alternate:
-    - name: English
-      link: /en/
-      lang: en
-    - name: 中文
-      link: /zh/
-      lang: zh
+
+
 
 plugins:
   - search
