@@ -31,15 +31,6 @@ theme:
           icon: material/brightness-4
           name: To light
 
-extra:
-  alternate:
-    - name: English
-      link: /en/
-      lang: en
-    - name: 中文
-      link: /zh/
-      lang: zh
-
 
 plugins:
   - search
@@ -52,7 +43,7 @@ plugins:
         en: 
           name: English
           build: true
-      # 开启后，右上角会自动出现切换语言的按钮
+          
       nav_translations:
         en:
           Home: Home
