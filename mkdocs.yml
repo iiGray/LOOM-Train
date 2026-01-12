@@ -29,18 +29,3 @@ theme:
         toggle:
           icon: material/brightness-4
           name: To light
-
-
-plugins:
-  - search
-  - i18n:
-      default_language: zh
-      languages:
-        - locale: en
-          name: English
-          default: false  
-          build: true 
-        - locale: zh
-          name: 中文
-          default: true  
-          build: true 
