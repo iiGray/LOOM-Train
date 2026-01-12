@@ -39,6 +39,7 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install mkdocs-material mkdocs-static-i18n
+          pip install mkdocs-cinder
 
       - name: Deploy MkDocs
         run: mkdocs gh-deploy --force

@@ -2,7 +2,7 @@ site_name: LOOM-Train
 site_url: https://iigray.github.io/LOOM-Train/
 repo_url: 
 theme:
-  name: material
+  name: cinder
 
 
   features:
@@ -37,11 +37,11 @@ plugins:
   - i18n:
       default_language: zh
       languages:
-        - locale: zh
-          name: 中文
-          default: true  
-          build: true 
         - locale: en
           name: English
           default: false  
+          build: true 
+        - locale: zh
+          name: 中文
+          default: true  
           build: true 
