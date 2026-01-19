@@ -9,12 +9,10 @@ from peft import get_peft_model_state_dict, get_peft_model, PeftModel
 from loomtrain.core.strategy import TrainStrategy
 from loomtrain.core.parallel import parallel_state as parallel
 
-from loomtrain.core.modeling.actors import PackingGPT, PackingRM
+from loomtrain.core.modeling.actor import PackingGPT, PackingRM
 from loomtrain.utils.init_hf import init_model
 from loomtrain.utils.common import IO
 
-
-from loomtrain.core.actor import LoomOptDict, LoomActorGroup
 
 
 class OrdinaryStrategy(TrainStrategy):
@@ -38,22 +36,20 @@ class OrdinaryStrategy(TrainStrategy):
         parallel.init_distributed(backend = 'nccl')
 
 
-    def loomModule_setup_module(self, opt_dicts: "dict[str, LoomOptDict]") -> "dict[str, LoomActorGroup]":
-        raise NotADirectoryError("If you use OrdinaryStrategy, make sure pass the `actor_groups` args into LoomModule")
 
-    def loomModule_backward(self, actor, loss):
+    def backward(self, actor, loss):
         loss.backward()
     
-    def loomModule_step(self):
+    def step(self):
         for group in self.opt_groups.values():
             group.actor.optimizer.step()
             group.actor.scheduler.step()
 
-    def loomModule_zero_grad(self):
+    def zero_grad(self):
         for group in self.opt_groups.values():
             group.actor.model.zero_grad()
 
-    def loomModule_save_ckpt(self, save_dir: str, tag: str):
+    def save_ckpt(self, save_dir: str, tag: str):
         for name, group in self.opt_groups.items():
             group.model.save_checkpoint(save_dir = os.path.join(save_dir, name), 
                                         tag = tag,
@@ -61,7 +57,7 @@ class OrdinaryStrategy(TrainStrategy):
                                         save_latest = True)
 
 
-    def loomModule_load_ckpt(self, saved_dir: str, tag: str):
+    def load_ckpt(self, saved_dir: str, tag: str):
         for name, group in self.opt_groups.items():
             group.model.load_checkpoint(
                 load_dir = saved_dir,
@@ -72,7 +68,7 @@ class OrdinaryStrategy(TrainStrategy):
                 load_module_only = False
             )
     
-    def loomModule_save_module(self, save_dir: str):        
+    def save_module(self, save_dir: str):        
         for name, group in self.opt_groups.items():
             gathered_state_dict = dict()
             actor = group.actor
