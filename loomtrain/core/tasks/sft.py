@@ -1,31 +1,23 @@
 import torch
-from loomtrain.core.actor import LoomOptDict
-from loomtrain.core.module import LoomModule
-from loomtrain.core.datamodule import LoomDataModule, LoomDataDict
-from loomtrain.core.data import role_template, CollateDataset, BucketMixin, BlendedDataset
-from loomtrain.core.parallel import parallel_state as parallel
+import loomtrain.core as lt
+from loomtrain.core import parallel
 from torch.nn import functional as F
+from loomtrain.core import args
 
+class SFTModule(lt.Module):
+    def __init__(self, model_path: str = None, tokenizer_path: str = None, model_type: str = "causal", collate_type = "packing", 
+                 optim_config: "lt.OptimConfig" = lt.OptimConfig()):
+        super().__init__(optim_configs = optim_config)
 
-class LoomSFTModule(LoomModule):
-    def __init__(self, model_name: str):
-        opt_dicts = dict(
-            group0 = LoomOptDict(
-                model_name = model_name,
-                model_type = 'causal',
-                loss_type = "sft",
-                collate_type = "packing" # will be overrided if strategy also sets this argument.
-            )
-        )
+        if model_path is None: model_path = args().model_path
+        if tokenizer_path is None: tokenizer_path = args().tokenizer_path
 
-        super().__init__(opt_dicts)
-    
-    def setup_self_module(self):
-        self.actor = self.opt_groups['group0'].actor
-        self.toknizer = self.opt_groups['group0'].tokenizer
-        self.optimizer = self.opt_groups['group0'].optimizer
-        self.scheduler = self.opt_groups['group0'].scheduler
-        self.loss_fn = self.opt_groups['group0'].loss_fn
+        self.actor = lt.modeling.init_actor(model_path = model_path,
+                                            model_type = model_type,
+                                            collate_type = collate_type)
+        self.loss_fn = lt.modeling.init_loss_fn(loss_type = "sft")
+
+        self.toknizer = lt.data.init_tokenizer(tokenizer_path if tokenizer_path else model_path)
 
     def micro_batch_forward_backward(self, batch) -> "dict[str, object]":
         inputs, attention_mask, loss_mask, seq_lens = batch
@@ -34,7 +26,7 @@ class LoomSFTModule(LoomModule):
 
         gpt_loss = self.loss_fn(output.logits, labels)
 
-        self.backward(self.actor, gpt_loss)
+        self.backward(gpt_loss, actor_of_the_loss = self.actor)
 
         return dict(
             loss = gpt_loss.item(),
@@ -56,113 +48,97 @@ class LoomSFTModule(LoomModule):
         )
     
     def non_accum_logs_per_step(self):
-        return dict(lr = self.scheduler.get_last_lr()[0])
+        return dict(lr = self.actor.scheduler.get_last_lr()[0])
 
 
-
-class LoomSFTData(LoomDataModule):
+class SFTDataModule(lt.DataModule):
     def __init__(self, 
-                 data_dicts: "list[LoomDataDict]", 
-                 max_length: int,
-                 num_proc: "int" = 8):
-        super().__init__(data_dicts)
+                 dataset_dicts: "list[lt.data.DatasetDict]", 
+                 tokenizer_path: str = None,
+                 max_length: int = None):
+        super().__init__()
+        if tokenizer_path is None:
+            tokenizer_path = args().tokenizer_path
+        if max_length is None:
+            max_length = args().max_data_length
+
         self.max_length = max_length
         self.cp_size = parallel.get_cp_size()
-        self.num_proc = num_proc
-        for data_dict in data_dicts:
-            data_dict.max_length = max_length
-            assert "prompt_key" in data_dict
-            assert  "response_key" in data_dict
+        self.dataset_dict = lt.data.BlendedDatasetDict(dataset_dicts)
 
-    @LoomDataModule.datasetmethod
-    def get_loss_mask(dataset, input_ids, idx):
+        self.tokenizer = lt.data.init_tokenizer(tokenizer_path)
+
+
+    def filter_data(self, dataset: "lt.data.Dataset", data):
+        if dataset.max_length < 128000:
+            prompt_template = data[dataset.prompt_key]
+            response_template = lt.role_template(data[dataset.response_key], "assistant")
+            tokenized = self.tokenizer.apply_chat_template(
+                prompt_template + response_template, tokenize = True, 
+                max_length = 128000, padding = False,
+                truncation = True, return_tensors = 'pt'
+            )
+            if tokenized.numel() > dataset.max_length: return False
+        return True
+
+    def map_data(self, dataset: "lt.data.Dataset", data):
+        prompt_template = data[dataset.prompt_key]
+        response_text = data[dataset.response_key]
+        if isinstance(response_text, str):
+            response_text = [{"role":"assistant", "content": response_text}]
+        prompt = self.tokenizer.apply_chat_template(
+            prompt_template, tokenize = False, add_generation_prompt = True
+        )
+        response = self.tokenizer.apply_chat_template(
+            prompt_template + response_text, tokenize = False
+        )[len(prompt): ]
+
+
+        prompt_token = self.tokenizer(prompt, max_length = dataset.max_length,
+                                      padding = False,
+                                      truncation = True,
+                                      return_tensors = 'pt',
+                                      add_special_tokens = False)
+        response_token = self.tokenizer(response, max_length = dataset.max_length,
+                                        padding = False,
+                                        truncation = True,
+                                        return_tensors = 'pt',
+                                        add_special_tokens = False)
+        
+        prompt_ids_len = prompt_token["attention_mask"].int().sum().item()
+        input_ids_len = prompt_ids_len + response_token["attention_mask"].int().sum().item()
+
+        return dict(
+            prompt = prompt,
+            response = response,
+            prompt_ids_len = prompt_ids_len,
+            input_ids_len = input_ids_len,
+            response_ranges = None # not multiturn
+        )
+    def set_dataset_properties(self, dataset: "lt.data.Dataset"):
+        with dataset.disable_get_fn():
+            dataset.set_input_ids_lens(
+                [k['input_ids_len'] for k in dataset]
+            )
+
+    def get_loss_mask(self, prompt_ids_len, input_ids):
         loss_mask = torch.zeros_like(input_ids, dtype = torch.bool)
-        prompt_ids_len = dataset.prompt_ids_lens[idx]
+        
         # TODO: multi-turn
         loss_mask[0, prompt_ids_len: ] = True
 
         return loss_mask
 
-    def dataset_initialize(dataset, self: "LoomSFTData", raw_dataset, data_dict):
-
-        tokenizer = dataset.tokenizer = data_dict.tokenizer
-        prompt_key = dataset.prompt_key = data_dict["prompt_key"]
-        response_key = dataset.response_key = data_dict["response_key"]
-        max_length = dataset.max_length = self.max_length
-
-        def filter_data(data: "dict"):
-            if max_length < 128000:
-                prompt_template = data[prompt_key]
-                response_template = role_template(data[response_key], "assistant")
-                tokenized = tokenizer.apply_chat_template(
-                    prompt_template + response_template, tokenize = True, 
-                    max_length = 128000, padding = False,
-                    truncation = True, return_tensors = 'pt'
-                )
-                if tokenized.numel() > max_length: return False
-            return True
-
-        def process_data(data):
-            prompt_template = data[prompt_key]
-            response_text = data[response_key]
-            if isinstance(response_text, str):
-                response_text = [{"role":"assistant", "content": response_text}]
-            prompt = tokenizer.apply_chat_template(
-                prompt_template, tokenize = False, add_generation_prompt = True
-            )
-            response = tokenizer.apply_chat_template(
-                prompt_template + response_text, tokenize = False
-            )[len(prompt): ]
-
-
-            prompt_token = tokenizer(prompt, max_length = max_length,
-                                        padding = False,
-                                        truncation = True,
-                                        return_tensors = 'pt',
-                                        add_special_tokens = False)
-            response_token = tokenizer(response, max_length = max_length,
-                                            padding = False,
-                                            truncation = True,
-                                            return_tensors = 'pt',
-                                            add_special_tokens = False)
-            
-            prompt_ids_len = prompt_token["attention_mask"].int().sum().item()
-            input_ids_len = prompt_ids_len + response_token["attention_mask"].int().sum().item()
-
-            return dict(
-                prompt = prompt,
-                response = response,
-                prompt_ids_len = prompt_ids_len,
-                input_ids_len = input_ids_len,
-                response_ranges = None # not multiturn
-            )
-
-        raw_dataset = raw_dataset.filter(filter_data, num_proc = self.num_proc)
-        processed_dataset = raw_dataset.map(process_data,
-                                            remove_columns = raw_dataset.column_names,
-                                            num_proc = self.num_proc)
-        
-        dataset.prompts = processed_dataset["prompt"]
-        dataset.responses = processed_dataset["response"]
-        dataset.prompt_ids_lens = processed_dataset["prompt_ids_len"]
-        # This attribute makes itself possible to be packed.
-        dataset._input_ids_lens = processed_dataset["prompt_ids_len"]
-
-
-    
-    def dataset_len(dataset, self: "LoomSFTData"):
-        return len(dataset.prompts)
-
-    def dataset_getitem(dataset, self: "LoomSFTData", idx):
-        prompt = dataset.prompts[idx]
-        response = dataset.responses[idx]
-        prompt_ids_len = dataset.prompt_ids_lens[idx]
+    def get_data(self, dataset: "lt.data.Dataset", data):
+        prompt = data['prompt']
+        response = data['response']
+        prompt_ids_len = data['prompt_ids_len']
 
         text = (prompt + response).rstrip("\n")
-        if not text.endswith(dataset.tokenizer.eos_token):
-            text += " " + dataset.tokenizer.eos_token
+        if not text.endswith(self.tokenizer.eos_token):
+            text += " " + self.tokenizer.eos_token
         
-        input_token = dataset.tokenizer(
+        input_token = self.tokenizer(
             text, max_length = self.max_length,
             padding = False,
             truncation = True,
@@ -170,15 +146,17 @@ class LoomSFTData(LoomDataModule):
             add_special_tokens = False
         )
 
-        loss_mask = dataset.get_loss_mask(input_token["input_ids"], idx)
+        loss_mask = self.get_loss_mask(prompt_ids_len, input_token["input_ids"])
 
-        input_token["input_ids"][0][-1] = dataset.tokenizer.eos_token_id
+        input_token["input_ids"][0][-1] = self.tokenizer.eos_token_id
         input_token["attention_mask"][0][-1] = True
 
 
         return input_token["input_ids"], input_token["attention_mask"], loss_mask
 
-    def dataset_collate_fn(dataset, self: "LoomSFTData", item_list):
+
+    def collate_fn(self, item_list):
+
         packed_input_ids = []
         packed_attention_masks = []
         packed_loss_masks = []
@@ -195,9 +173,16 @@ class LoomSFTData(LoomDataModule):
 
         if packed_input_ids.numel() % self.cp_size:
             padding_len = self.cp_size - (packed_input_ids.numel() % self.cp_size)
-            packed_input_ids = F.pad(packed_input_ids, (0, padding_len), value = dataset.tokenizer.pad_token_id)
+            packed_input_ids = F.pad(packed_input_ids, (0, padding_len), value = self.tokenizer.pad_token_id)
             packed_attention_masks = F.pad(packed_attention_masks, (0, padding_len), value = 0)
             packed_loss_masks = F.pad(packed_loss_masks, (0, padding_len), value = 0)
 
         
         return packed_input_ids, packed_attention_masks, packed_loss_masks, seq_lens
+
+
+    def get_train_dataset(self):
+        return self.dataset_dict["train"]
+    
+    def get_val_dataset(self):
+        return self.dataset_dict["val"]
