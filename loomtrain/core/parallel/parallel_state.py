@@ -7,17 +7,17 @@ import torch.distributed as dist
 class ParallelConfig:
     nnodes: int = 1
     devices_per_node: int = 8
-    cp:int = 8
-    pp:int = 1
-    sp:int = 1
-    tp:int = 1
+    cp_size:int = 8
+    pp_size:int = 1
+    sp_size:int = 1
+    tp_size:int = 1
     cp_type: Literal["ring"] = "ring"
     cp_args: "dict" = field(default_factory = lambda: dict(head_stride = 1))
     order = ("tp", "sp", "cp", "pp", "dp")
 
     @property
     def shape(self):
-        return tuple([getattr(self, o) for o in self.order])
+        return tuple([getattr(self, o + "_size") for o in self.order])
 
     @property
     def expected_order(self):
@@ -29,14 +29,25 @@ class ParallelConfig:
 
     @property
     def size_expect_dp(self):
-        return self.cp * self.pp * self.sp * self.tp
+        return self.cp_size * self.pp_size * self.sp_size * self.tp_size
     
     @property
-    def dp(self):
+    def dp_size(self):
         if not hasattr(self, "_dp"):
             self._dp = self.expected_world_size // self.size_expect_dp
         return self._dp
 
+    @property
+    def tp(self): return self.tp_size
+    @property
+    def sp(self): return self.sp_size
+    @property
+    def cp(self): return self.cp_size
+    @property
+    def pp(self): return self.pp_size
+    @property
+    def dp(self): return self.dp_size
+    
 
     def __post_init__(self):
         assert len(self.order) == 5, str(self.order)
@@ -78,6 +89,7 @@ _WORLD_SIZE_: int = None
 
 _IS_INITIALIZED_: bool = False
 
+_ALLOW_DISTRIBUTED_: bool = True
 
 def get_cp_group():
     assert _CP_GROUP_ is not None
@@ -350,6 +362,14 @@ def _init_parallel_plugins(parallel_config: "ParallelConfig"):
 
 def is_initialized() -> bool:
     return _IS_INITIALIZED_
+
+def enable_distributed(allow: bool = True):
+    global _ALLOW_DISTRIBUTED_
+    _ALLOW_DISTRIBUTED_ = allow
+
+def is_distributed_allowed():
+    global _ALLOW_DISTRIBUTED_
+    return _ALLOW_DISTRIBUTED_
 
 
 class ParallelPlugin:
