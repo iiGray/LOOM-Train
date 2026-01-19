@@ -15,6 +15,9 @@ def get_loss_cls(loss_type: Literal["sft", "simpo"] = "sft"):
     elif loss_type == "simpo":
         return SimPOLoss
 
+def init_loss_fn(loss_type: Literal["sft", "simpo"] = "sft", *loss_args, **loss_kwargs):
+    return get_loss_cls(loss_type)(*loss_args, **loss_kwargs)
+
 
 class GPTCELoss(nn.Module):
     def __init__(self, ignore_index:int = -100):
