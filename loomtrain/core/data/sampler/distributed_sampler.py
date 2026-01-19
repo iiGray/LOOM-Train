@@ -5,19 +5,15 @@ import torch
 import torch.distributed as dist
 import torch.utils.data as tud
 from torch.utils.data.dataset import Dataset
-from torch.utils.data.sampler import Sampler
-from loomtrain.core.utils.common.tools import bucketize
-from loomtrain.core.data.dataset import CollateDataset
-from loomtrain.core import parallel
+from loomtrain.utils.common.tools import bucketize
+from loomtrain.dataset.sft import SFTDataset
+from loomtrain.core.data.sampler.base import _T_co, StatefulSampler
 
 __all__ = ["DistributedSampler", "DistributedBucketSampler"]
 
 
-_T_co = TypeVar("_T_co", covariant=True)
-
-
 # Adapted from https://github.com/pytorch/pytorch/blob/5298acb5c76855bc5a99ae10016efc86b27949bd/torch/utils/data/distributed.py
-class DistributedSampler(Sampler[_T_co]):
+class DistributedSampler(StatefulSampler):
     r"""Sampler that restricts data loading to a subset of the dataset.
 
     It is especially useful in conjunction with
@@ -80,11 +76,11 @@ class DistributedSampler(Sampler[_T_co]):
         if num_replicas is None:
             if not dist.is_available():
                 raise RuntimeError("Requires distributed package to be available")
-            num_replicas = parallel.get_dp_size()
+            num_replicas = dist.get_world_size()
         if rank is None:
             if not dist.is_available():
                 raise RuntimeError("Requires distributed package to be available")
-            rank = parallel.get_dp_rank()
+            rank = dist.get_rank()
         if rank >= num_replicas or rank < 0:
             raise ValueError(f"Invalid rank {rank}, rank should be in the interval [0, {num_replicas - 1}]")
         self.dataset = dataset
@@ -140,7 +136,7 @@ class DistributedSampler(Sampler[_T_co]):
     def __len__(self) -> int:
         return self.num_samples - self.consumed_indicies
 
-    def set_epoch(self, epoch: int, consumed_samples = 0) -> None:
+    def set_state(self, epoch: int, consumed_samples = 0) -> None:
         r"""
         Set the epoch for this sampler.
 
@@ -157,10 +153,10 @@ class DistributedSampler(Sampler[_T_co]):
 
 
 
-class DistributedBucketSampler(Sampler[_T_co]):
+class DistributedBucketSampler(StatefulSampler):
     def __init__(
         self,
-        dataset: CollateDataset,
+        dataset: Dataset,
         bucket_size: int, 
         num_replicas: Optional[int] = None,
         rank: Optional[int] = None,
@@ -174,11 +170,11 @@ class DistributedBucketSampler(Sampler[_T_co]):
         if num_replicas is None:
             if not dist.is_available():
                 raise RuntimeError("Requires distributed package to be available")
-            num_replicas = parallel.get_dp_size()
+            num_replicas = dist.get_world_size()
         if rank is None:
             if not dist.is_available():
                 raise RuntimeError("Requires distributed package to be available")
-            rank = parallel.get_dp_rank()
+            rank = dist.get_rank()
         if rank >= num_replicas or rank < 0:
             raise ValueError(f"Invalid rank {rank}, rank should be in the interval [0, {num_replicas - 1}]")
         self.dataset = dataset
@@ -251,7 +247,7 @@ class DistributedBucketSampler(Sampler[_T_co]):
     def __len__(self) -> int:
         return self.num_samples - self.consumed_indicies
 
-    def set_epoch(self, epoch: int, consumed_samples = 0) -> None:
+    def set_state(self, epoch: int, consumed_samples = 0) -> None:
         r"""
         Set the epoch for this sampler.
 
