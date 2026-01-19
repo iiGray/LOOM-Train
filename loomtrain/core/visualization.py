@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from loomtrain.core.utils import basename, dirname
-from loomtrain.core.state import CheckpointMixin
+from loomtrain.core.state import LoomCheckpointMixin
 from loomtrain.core.utils import (
     IO, rank0only_decorator, rank0print,
 )
@@ -26,9 +26,20 @@ class TensorboardConfig:
     log_dir: str
     name : str
 
+class NoneVisualization(LoomCheckpointMixin):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
 
+    @rank0only_decorator
+    def _save_ckpt(self, *args, **kwargs): ...
+    @rank0only_decorator
+    def _load_ckpt(self, *args, **kwargs): ...
+    @rank0only_decorator
+    def _update_(self, *args, **kwargs): ...
+    @rank0only_decorator
+    def release(self, *args, **kwargs): ...
 
-class VisualizationModule(CheckpointMixin):
+class VisualizationModule(LoomCheckpointMixin):
     '''Default using Tensorboard config'''
     def __init__(self,
                  logtype: Literal["tensorboard","wandb"] = "tensorboard",
@@ -109,14 +120,14 @@ class VisualizationModule(CheckpointMixin):
 
 
     @rank0only_decorator
-    def update(self, logs_dict:dict):
+    def _update(self, logs_dict:dict):
         global_step = self.global_step
         logging_steps = self.logging_steps
         self._update_tensorboard(logs_dict, global_step, logging_steps)
         self._update_wandb(logs_dict, global_step, logging_steps)
 
 
-    def get_saved_sub_dir(self): 
+    def sub_dir_to_save(self): 
         return self.logtype
 
     @rank0only_decorator
