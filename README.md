@@ -1,5 +1,13 @@
 # 🏗️ Loom-Train  
 *A Simple & Efficient Training Framework for Long-Context LLMs*
+<div class="image-container h-64 md:h-80">
+  <img src="assets/LOOM-Train-LOGO.png" 
+       alt="LOOM-Scope Logo" 
+       title="LOOM-Scope Logo" 
+       class="logo-image">
+</div>
+
+
 <p align="center">
   <a href="https://iigray.github.io/LOOM-Train/">
     <img src="https://img.shields.io/badge/Documentation-docs-orange?style=plastic&logo=readthedocs" alt="Documentation">
