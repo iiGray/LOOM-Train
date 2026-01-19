@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 from copy import deepcopy
+from datetime import timedelta
 from typing import Union, Literal, Callable, TYPE_CHECKING
 from dataclasses import dataclass
 import torch, deepspeed
@@ -17,12 +18,10 @@ from loomtrain.core.utils import basename, dirname, save_json
 from loomtrain.core.strategy import TrainStrategy
 from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.utils.init_hf import init_model, init_tokenizer
-from loomtrain.core.modeling.actors import PackingGPT, PackingRM 
-
+from loomtrain.core.modeling.actor import Actor, PackingGPT, PackingRM 
 from loomtrain.utils.common import IO
-
-from loomtrain.core.strategy import DataConfig
-from loomtrain.core.actor import LoomOptDict, LoomActorGroup
+from loomtrain.core.arguments import args
+from loomtrain.core.strategy import DataConfig, OptimConfig
 
 @dataclass
 class DeepspeedConfig:
@@ -35,81 +34,85 @@ class DeepspeedConfig:
     zpg             : int = 1
     grad_accum_dtype: Literal["fp16", "bf16", "fp32"] = None
     overlap_comm    : bool = False
-    load_univeral   : bool = False
+    load_universal   : bool = False
     torch_compile   : bool = False #useless ?
 
 
 class DeepspeedStrategy(TrainStrategy):
-    def __init__(
-            self,
-            parallel_config: "parallel.ParallelConfig",
-            data_config: "DataConfig",
-            deepspeed_config: "DeepspeedConfig" = None,
-            full_determinism: bool = False,
-            seed: int = 42,
-    ):
+    def __init__(self, 
+                 parallel_config: "parallel.ParallelConfig" = None,
+                 data_config: "DataConfig" = None,
+                 config: "DeepspeedConfig" = None,):
         super().__init__(
-            parallel_config = parallel_config,
-            data_config = data_config,
-            full_determinism = full_determinism,
-            seed = seed
+            parallel_config = parallel_config, 
+            data_config = data_config
         )
-        if deepspeed_config is None: deepspeed_config = DeepspeedConfig()
-        self.config = deepspeed_config
+        if config is None:
+            config = DeepspeedConfig(
+                zero_stage = args().zero_stage,
+                enable_bf16 = args().enable_bf16,
+                offload = args().offload,
+                adam_offload = args().adam_offload,
+                ref_offload = args().ref_offload,
+                grad_clip = args().grad_clip,
+                zpg = args().zpg,
+                grad_accum_dtype = args().grad_accum_dtype,
+                overlap_comm = args().overlap_comm,
+                load_universal = args().load_universal,
+            )
+        self.config = config
 
     def init_distributed(self):
-        deepspeed.init_distributed(timeout = self.init_timeout)
+        deepspeed.init_distributed(timeout = timedelta(minutes = args().deepspeed_init_timeout))
 
 
-    def loomModule_setup_module(self, opt_dicts: "dict[str, LoomOptDict]") -> "dict[str, LoomActorGroup]":
+    def config_module(self):
         '''
         deepspeed default config only one model, one optimizer and one scheduler,
         for more flexible use, one may implement `setup_module` directly by inheriting LoomModule and override it.
         '''
 
-        built_dict = dict()
-
-        for name, opt_dict in opt_dicts.items():
-            model = init_model(opt_dict.model_name, model_type = opt_dict.model_type)
-            tokenizer = init_tokenizer(opt_dict.tokenizer_name)
+        for actor_name, actor_optim_cfg in self.split_submodules_by_actors().items():
             AdamOptimizer = DeepSpeedCPUAdam if self.config.adam_offload else FusedAdam
-            optim_params = optimizer_grouped_parameters(model, opt_dict.L2_weight_decay)
-            
-            optimizer = AdamOptimizer(optim_params, lr = opt_dict.lr, betas = opt_dict.betas, weight_decay = opt_dict.L2_weight_decay)
 
+            optim_params = []
+            for name_path, opt_cfg in actor_optim_cfg.items():
+                optim_params += optimizer_grouped_parameters(
+                    self.get_submodule(name_path),
+                    lr = opt_cfg.lr,
+                    betas = opt_cfg.betas,
+                    weight_decay = opt_cfg.L2_weight_decay
+                )
+
+            optimizer = AdamOptimizer(optim_params)
             scheduler = get_scheduler(
-                name = opt_dict.lr_type,
+                name = opt_cfg.lr_type,
                 optimizer = optimizer,
-                num_warmup_steps = opt_dict.num_warmup_steps,
-                num_training_steps = opt_dict.total_steps,
-                scheduler_specific_kwargs = dict(min_lr = opt_dict.lr * 0.1 \
-                    if opt_dict.min_lr is None else opt_dict.min_lr)
+                num_warmup_steps = opt_cfg.num_warmup_steps,
+                num_training_steps = opt_cfg.total_steps,
+                scheduler_specific_kwargs = dict(min_lr = opt_cfg.lr * 0.05)
             )
-            model, optimizer, scheduler = self._prepare_train(
-                model, optimizer, scheduler
-            )
-
-            built_dict[name] = LoomActorGroup(
-                model = model,
-                tokenizer = tokenizer,
-                optimizer = optimizer,
-                scheduler = scheduler,
-                actor_type = opt_dict.model_type,
-                loss_type = opt_dict.loss_type
+            
+            actor, optimizer, scheduler = self._prepare_train(
+                self.get_submodule(actor_name), optimizer, scheduler
             )
 
-        return built_dict
+            actor.set_optimizer(optimizer)
+            actor.set_scheduler(scheduler)
 
-    def loomModule_backward(self, actor, loss):
-        actor.model.backward(loss)
+            self.module.set_actor(actor_name, actor)
+
+
+    def backward(self, loss: "torch.Tensor", actor_of_the_loss: "Actor" = None):
+        actor_of_the_loss.model.backward(loss)
     
-    def loomModule_step(self):
-        for group in self.opt_groups.values():
-            group.actor.model.step()
+    def step(self):
+        for actor in self.opt_groups.values():
+            actor.model.step()
 
-    def loomModule_zero_grad(self):
-        for group in self.opt_groups.values():
-            engine = group.actor.model
+    def zero_grad(self):
+        for actor in self.opt_groups.values():
+            engine = actor.model
             if engine.bfloat16_enabled():
                 # TODO: Temporary until bf16_optimizer and zero_optimizer are integrated
                 if engine.zero_optimization() and hasattr(engine.optimizer, "zero_grad"):
@@ -121,9 +124,9 @@ class DeepspeedStrategy(TrainStrategy):
             else:
                 engine.zero_grad()
 
-    def _prepare_train(self, model: "nn.Module", optimizer, scheduler):
+    def _prepare_train(self, model: "Actor", optimizer, scheduler):
         engine, optimizer, _, scheduler = deepspeed.initialize(
-            model = model,
+            model = model.model,
             optimizer = optimizer,
             lr_scheduler = scheduler,
             config = deepspeed_train_config(
@@ -138,26 +141,28 @@ class DeepspeedStrategy(TrainStrategy):
                         zpg = self.config.zpg,
                         grad_accum_dtype = self.config.grad_accum_dtype,
                         overlap_comm = self.config.overlap_comm,
-                        load_univeral = self.config.load_univeral
+                        load_univeral = self.config.load_universal
                     ),
             args = dict(local_rank = int(os.environ.get("LOCAL_RANK", "-1"))),
             dist_init_required = True,
         ) 
 
         if self.config.torch_compile: engine.compile()
+        
+        model.model = engine
 
-        return engine, optimizer, scheduler
+        return model, optimizer, scheduler
     
 
-    def loomModule_save_ckpt(self, save_dir: str, tag: str):
-        for name, group in self.opt_groups.items():
-            group.model.save_checkpoint(save_dir = os.path.join(save_dir, name), 
+    def save_ckpt(self, save_dir: str, tag: str):
+        for name, actor in self.opt_groups.items():
+            actor.model.save_checkpoint(save_dir = os.path.join(save_dir, name), 
                                         tag = tag,
                                         client_state = dict(),
                                         save_latest = True)
 
 
-    def loomModule_load_ckpt(self, saved_dir: str, tag: str):
+    def load_ckpt(self, saved_dir: str, tag: str):
         for name, group in self.opt_groups.items():
             assert isinstance(group.model, deepspeed.DeepSpeedEngine)
             group.model.load_checkpoint(
@@ -185,7 +190,7 @@ class DeepspeedStrategy(TrainStrategy):
 
     #     return step, update_steps_per_epoch, start_epoch, consumed_samples, total_tokens, loss_tokens
     
-    def loomModule_save_module(self, save_dir: str):
+    def save_module(self, save_dir: str):
         
         for name, group in self.opt_groups.items():
             gathered_state_dict = dict()
@@ -377,6 +382,8 @@ def deepspeed_eval_config(
 
 def optimizer_grouped_parameters(
     model: deepspeed.DeepSpeedEngine,
+    lr: float,
+    betas: "tuple[float, float]",
     weight_decay: float,
     no_decay_name_list=["bias", "layer_norm.weight", "layernorm.weight", "norm.weight", "ln_f.weight"],
 ):
@@ -387,6 +394,8 @@ def optimizer_grouped_parameters(
                 for n, p in model.named_parameters()
                 if (not any(nd in n for nd in no_decay_name_list) and p.requires_grad)
             ],
+            "lr": lr,
+            "betas": betas,
             "weight_decay": weight_decay,
         },
         {
@@ -395,6 +404,8 @@ def optimizer_grouped_parameters(
                 for n, p in model.named_parameters()
                 if (any(nd in n for nd in no_decay_name_list) and p.requires_grad)
             ],
+            "lr": lr,
+            "betas": betas,
             "weight_decay": 0.0,
         },
     ]
