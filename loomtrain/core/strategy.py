@@ -1,18 +1,25 @@
 import os, torch, transformers
 from typing import Callable, Literal, TYPE_CHECKING
+from collections import defaultdict
 from torch import nn
 import torch.utils.data as tud
 import torch.distributed as dist
 from datetime import timedelta
 from loomtrain.dataset.base import CollateDataset
-from loomtrain.core.data.dataloader.iter import LoomDataIter
+from loomtrain.core.data.dataloader.iter import DataIter
 
 # from loomtrain.core.device.mesh import DeviceMes
+
+from loomtrain.core.utils import *
+from loomtrain.core.arguments import add_extra_arguments_by, args
 from loomtrain.core.parallel import parallel_state as parallel
+from loomtrain.core.datamodule import DataModule
+
 if TYPE_CHECKING:
-    from loomtrain.core.module import LoomModule
-    from loomtrain.core.datamodule import LoomDataModule
-from loomtrain.core.actor import LoomActorGroup
+    from loomtrain.core.module import Module
+    from loomtrain.core.modeling.actor import Actor
+    from loomtrain.core.data.sampler import *
+
 from dataclasses import dataclass
 from functools import partial
 
@@ -22,11 +29,10 @@ class DataConfig:
     collate_type: Literal["packing", "padding"]
     packing_length: "int" = None # work while collate_type is packing
     
-    train_batch_size: int = 1
+    global_batch_size: int = 1
     micro_batch_size: int = 1
     val_batch_size: int = 1
     val_interval: "int" = None
-    batch_size: "int" = 1
     num_epochs: "int" = 1
     pin_memory: "bool" = False
     shuffle: "bool" = True
@@ -35,24 +41,51 @@ class DataConfig:
 
     @property
     def grad_accum(self):
-        return self.train_batch_size * parallel.get_cp_size() // self.micro_batch_size // parallel.get_world_size()
+        return self.global_batch_size * parallel.get_cp_size() // self.micro_batch_size // parallel.get_world_size()
 
 class DataStrategy: 
     '''
     prepare dataloader (This class is mainly designed for different data packing algorithms)
     '''
     def __init__(self,
-                 parallel_config:"parallel.ParallelConfig",
-                 data_config: "DataConfig",
+                 parallel_config: "parallel.ParallelConfig" = None,
+                 data_config: "DataConfig" = None,
                  full_determinism: "bool" = False,
                  seed:int = 42):
+        if parallel_config is None:
+            parallel_config = parallel.ParallelConfig(
+                nnodes = args().nnodes,
+                devices_per_node = args().devices_per_node,
+                cp_size = args().cp_size,
+                cp_type = args().cp_type,
+                cp_args = args().cp_args
+            )
+        if data_config is None:
+            data_config = DataConfig(
+                collate_type = args().collate_type,
+                packing_length = args().packing_length,
+                global_batch_size = args().global_batch_size,
+                micro_batch_size = args().micro_batch_size,
+                val_batch_size = args().val_batch_size,
+                val_interval = args().val_interval,
+                num_epochs = args().num_epochs,
+                pin_memory = args().pin_memory,
+                shuffle = args().shuffle,
+                drop_last = args().drop_last,
+                drop_exceed = args().drop_exceed
+            )
+        if full_determinism is None:
+            full_determinism = args().full_determinism
+        if seed is None:
+            seed = args().seed
+
         self.parallel_config = parallel_config
         self.data_config = data_config
         self.full_determinism = full_determinism
         self.seed = seed
 
-        self.dp_size = self.parallel_config.dp
-        self.num_replicas = self.parallel_config.dp
+        self.dp_size = self.parallel_config.dp_size
+        self.num_replicas = self.parallel_config.dp_size
 
         self._rank = None
     
@@ -63,39 +96,76 @@ class DataStrategy:
             self._rank = parallel.get_dp_rank()
         return self._rank
 
-    def _setup_train_data_iter(self, train_dataset: "tud.Dataset"):
-        self.train_data_iter = self.setup_data_iter(train_dataset)
-        return self.train_data_iter
+    @property
+    def train_data_iter(self) -> "DataIter":
+        return self.datamodule.train_data_iter
 
-    def _setup_val_data_iter(self, val_dataset: "tud.Dataset"):
-        self.val_data_iter = self.setup_data_iter(val_dataset)
-        return self.val_data_iter
-
-
-    def config_loomDataModule_method(self, datamodule: "LoomDataModule"):
-        try:
-            self.loomDataModule_load_ckpt(None, None)
-        except NotImplementedError: ...
-        except Exception as e: 
-            datamodule.load_ckpt = self.loomDataModule_load_ckpt
-        try:
-            self.loomDataModule_save_ckpt(None, None)
-        except NotADirectoryError: ...
-        except Exception as e: 
-            datamodule.load_ckpt = self.loomDataModule_load_ckpt
+    @property
+    def val_data_iter(self) -> "DataIter":
+        return self.datamodule.val_data_iter
 
 
-    def loomDataModule_save_ckpt(self, save_dir: str, tag: str):
+    def _connect_datamodule(self, datamodule: "DataModule"):
+        assert isinstance(datamodule, DataModule)
+        self.datamodule = datamodule
+
+
+    def setup_train_data_iter(self):
         raise NotImplementedError
+        
+    def setup_val_data_iter(self):
+        raise NotImplementedError
+
+    def collate_fn(self, item_list):
+        raise NotImplementedError
+
+    def load_sampler_fn(self, sampler: "DistributedSampler | DistributedBucketSampler", consumed_epoch: int , consumed_samples: int):
+        raise NotImplementedError
+
+    def save_ckpt(self, save_dir: str, tag: str):
+        save_json(self.train_data_iter.get_state()), path_join(save_dir, "states.json")
     
-    def loomDataModule_load_ckpt(self, saved_dir: str, tag: str):
-        raise NotImplementedError
-
+    def load_ckpt(self, saved_dir: str, tag: str):
+        self.consumed_samples = 0
+        self.consumed_epoch = 0
+        if IO.exists(saved_dir) and IO.exists(path_join(saved_dir, "states.json")):
+            states = read_json(path_join(saved_dir, "states.json"))
+            self.consumed_samples = states["consumed_samples"]
+            self.consumed_epoch = states['consumed_epoch']
+        
+        self.train_data_iter.set_state(consumed_epoch = self.consumed_epoch, 
+                                       consumed_samples = self.consumed_samples)
+        
     def setup_data_iter(self, 
-                        dataset: "tud.Dataset") -> "LoomDataIter":
+                        dataset: "tud.Dataset") -> "DataIter":
         raise NotImplementedError
 
 
+@dataclass
+class OptimConfig:
+    lr   : "float" = 1e-5
+    min_lr: "float" = None
+    betas: "tuple" = (0.9, 0.95)
+    L2_weight_decay: float = 0.0
+    lr_type: Literal["linear",
+                    "cosine",
+                    "cosine_with_restarts",
+                    "polynomial",
+                    "constant",
+                    "constant_with_warmup",
+                    "inverse_sqrt",
+                    "reduce_lr_on_plateau",
+                    "cosine_with_min_lr",
+                    "warmup_stable_decay"] = "cosine_with_min_lr"
+    warmup_ratios: "int" = 0.03
+    total_steps = None
+    @property
+    def num_warmup_steps(self):
+        if not hasattr(self, "_num_warmup_steps"):
+            assert self.total_steps, "Module should connect DataModule first."
+            self._num_warmup_steps = round(self.total_steps * self.warmup_ratios)
+
+        return self._num_warmup_steps
 
 # TBD
 class TrainStrategy:
@@ -104,25 +174,94 @@ class TrainStrategy:
     '''
 
     def __init__(self,
-                 parallel_config: "parallel.ParallelConfig",
-                 data_config: "DataConfig",
-                 init_timeout = timedelta(minutes = 60),
-                 full_determinism: bool = False,
-                 seed: int = 42,):
+                 parallel_config: "parallel.ParallelConfig" = None,
+                 data_config: "DataConfig" = None,
+                 full_determinism: "bool" = None,
+                 seed: "int" = None):
+        if parallel_config is None:
+            parallel_config = parallel.ParallelConfig(
+                nnodes = args().nnodes,
+                devices_per_node = args().devices_per_node,
+                cp_size = args().cp_size,
+                cp_type = args().cp_type,
+                cp_args = args().cp_args
+            )
+        if data_config is None:
+            data_config = DataConfig(
+                collate_type = args().collate_type,
+                packing_length = args().packing_length,
+                global_batch_size = args().global_batch_size,
+                micro_batch_size = args().micro_batch_size,
+                val_batch_size = args().val_batch_size,
+                val_interval = args().val_interval,
+                num_epochs = args().num_epochs,
+                pin_memory = args().pin_memory,
+                shuffle = args().shuffle,
+                drop_last = args().drop_last,
+                drop_exceed = args().drop_exceed
+            )
+        
         self.parallel_config = parallel_config
-        self.data_config = data_config 
-        self.init_timeout = init_timeout
+        self.data_config = data_config
+
+        self._optim_configs_ = None
+
+        if full_determinism is None:
+            full_determinism = args().full_determinism
+        if seed is None:
+            seed = args().seed
+        
         self.full_determinism = full_determinism
         self.seed = seed
             
-        self.batch_size = data_config.train_batch_size
-        self.micro_batch_size = data_config.micro_batch_size
+        self.global_batch_size = self.data_config.global_batch_size
+        self.micro_batch_size = self.data_config.micro_batch_size
 
 
-    def connect_opt_groups(self, opt_groups: "dict[str, LoomActorGroup]"):
-        self.opt_groups = opt_groups
+    def _connect_module(self, module: "Module"):
+        self.module = module
+        self.optim_configs = module.optim_configs
+
+    def _connect_datamodule(self, datamodule: "DataModule"):
+        self.datamodule = datamodule
+        for optim_group in self.optim_configs.values():
+            optim_group.total_steps = datamodule.total_train_steps
+
+    @property
+    def opt_groups(self): return self.module.actors
+
+    @property
+    def optim_configs(self):
+        if not self._optim_configs_:
+            raise ValueError("optim_configs has not been set yet. please connect strategy to module first.")
+        return self._optim_configs_
+    
+    @optim_configs.setter
+    def optim_configs(self, optim_configs: "dict[str, OptimConfig]"):
+        self._optim_configs_ = optim_configs
+    
+    def get_submodule(self, name_path: str):
+        if name_path.startswith("."): 
+            name_path = "module" + name_path
+        elif not name_path.startswith("module"):
+            name_path = "module." + name_path
+        name_list = name_path.split(".")
+        module = self
+        for name in name_list:
+            module = getattr(module, name)
+        return module
+    def split_submodules_by_actors(self) -> "dict[str, dict[str, OptimConfig]]":
+        dicts = defaultdict(dict)
+        if len(self.optim_configs) == 1 and "module" in self.optim_configs:
+            for actor_name in self.opt_groups.keys():
+                dicts[actor_name] = {f"module.{actor_name}": self.optim_configs["module"]}
+            return dicts
         
-
+        for name_path, cfg in self.optim_configs.items():
+            if name_path.startswith("."): name_path = "module" + name_path
+            dicts[name_path.split(".")[1]][name_path] = cfg
+        return dicts   
+        
     def setup_distributed(self):
         self.set_seed()
         self.set_device()
@@ -132,64 +271,37 @@ class TrainStrategy:
 
     def init_distributed(self):
         raise NotImplementedError
+
+    def config_module(self): ...
+
+
+    def save_ckpt(self, save_dir: "str", tag: "str"):
+        raise NotImplementedError
+
+    def load_ckpt(self, saved_dir: "str", tag: "str"):
+        raise NotImplementedError
+
+    def save_module(self, save_dir: "str", tag: "str"):
+        raise NotImplementedError
+
+    def backward(self, loss: "torch.Tensor", actor_of_the_loss: "Actor" = None):
+        loss.sum().backward()
+
+    def step(self):
+        raise NotImplementedError
+
+    def zero_grad(self):
+        raise NotImplementedError
+
+
+    def micro_batch_forward_backward(self, batch):
+        raise NotImplementedError
     
-    def loomModule_save_ckpt(self, save_dir: str, tag: str):
+    def micro_batch_validate_forward(self, batch):
         raise NotImplementedError
 
-    def loomModule_load_ckpt(self, saved_dir: str, tag: str):
-        raise NotImplementedError
-
-    def loomModule_save_module(self, save_dir: str, tag: str):
-        raise NotImplementedError
-
-    def loomModule_setup_module(self, modules: "list[nn.Module] | dict[str, nn.Module]") -> None:
-        raise NotImplementedError
-
-    def loomModule_setup_optimizer(self):
-        raise NotImplementedError
-
-    def loomModule_setup_scheduler(self):
-        raise NotImplementedError
-
-    def loomModule_backward(self):
-        raise NotImplementedError
-
-    def loomModule_step(self):
-        raise NotImplementedError
-
-
-    def loomModule_zero_grad(self):
-        raise NotImplementedError
-
-    def config_loomModule_method(self, module: "LoomModule"):
-        module.save_ckpt = self.loomModule_save_ckpt
-        module.load_ckpt = self.loomModule_load_ckpt
-        module.get_saved_sub_dir = lambda : "ckpts"
-        module.save_module = self.loomModule_save_module
-
-        try:
-            module.setup_module(None)
-        except NotImplementedError:
-            module.setup_module = self.loomModule_setup_module
-        except Exception as e: ...
-        try:
-            module.backward(None, None)
-        except NotImplementedError:
-            module.backward = self.loomModule_backward
-        except Exception as e: ...
-        try:
-            module.step()
-        except NotImplementedError:
-            module.step = self.loomModule_step
-        except Exception as e: ...
-
-        
-        try:
-            module.zero_grad()
-        except NotImplementedError:
-            module.zero_grad = self.loomModule_zero_grad
-        except Exception as e: ...
-
+    def non_accum_logs_per_step(self):
+        return dict()
 
     def init_parallel(self):
         parallel.initialize(self.parallel_config)
@@ -233,12 +345,6 @@ class TrainStrategy:
         submodules[submodule_name] = submodule
         module.__dict__[submodule_name] = submodule
 
-
-    def prepare_train(self, model, optimizer, scheduler):
-        return model, optimizer, scheduler
-    
-    def prepare_eval(self, model):
-        return model
 
 
     # def backward(self, loss: torch.Tensor, model: "LoomModule"):
