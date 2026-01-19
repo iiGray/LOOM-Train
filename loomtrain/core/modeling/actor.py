@@ -12,6 +12,8 @@ from transformers.modeling_outputs import (
 from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.modeling.customs.rm_modeling import train_forwards
 
+from loomtrain.core.utils.init_hf import init_model, init_tokenizer
+
 
 def get_actor_cls(actor_type: Literal["causal", "classifier"] = "causal", 
                   collate_type: Literal["packing", "padding"] = "packing") -> "PackingGPT | PackingRM":
@@ -22,12 +24,48 @@ def get_actor_cls(actor_type: Literal["causal", "classifier"] = "causal",
         return PackingRM
 
 
+def init_actor(model_path, 
+               model_type: str = "causal", 
+               collate_type: Literal["packing", "padding"] = "packing") -> "Actor":
+    return get_actor_cls(model_type, collate_type)(init_model(model_path, model_type = model_type))
+
 
 class Actor(nn.Module):
-    def __init__(self, model: "nn.Module"):
+    '''
+    A module with a single optimizer and learning rate scheduler
+    '''
+    def __init__(self, model: "nn.Module", trainable: bool = True):
         super().__init__()
         self.model = model
+        self.trainable = trainable
+        self._optim_objects_ = {} 
 
+    @property
+    def optimizer(self):
+        return self._optim_objects_.get("optimizer", None)
+
+
+    def set_optimizer(self, optim: "torch.optim.Optimizer"):
+        assert self.trainable, "Cannot set optimizer for a non-trainable Actor"
+        self.optimizer = optim
+    def set_scheduler(self, sched: "torch.optim.lr_scheduler.LRScheduler"):
+        assert self.trainable, "Cannot set scheduler for a non-trainable Actor"
+        self.scheduler = sched
+
+    @optimizer.setter
+    def optimizer(self, optim: "torch.optim.Optimizer"):    
+        self._optim_objects_["optimizer"] = optim
+
+    @property
+    def scheduler(self):
+        return self._optim_objects_.get("scheduler", None)
+
+    @scheduler.setter
+    def scheduler(self, sched: "torch.optim.lr_scheduler.LRScheduler"):    
+        self._optim_objects_["scheduler"] = sched
+
+    def forward(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
 
 
 class PackingGPT(Actor):
