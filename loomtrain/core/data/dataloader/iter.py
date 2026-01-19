@@ -1,18 +1,22 @@
-from typing import Iterable
+from typing import Iterable, Callable, TYPE_CHECKING
 import torch.utils.data as tud
-from loomtrain.core.data.dataset.base import CollateDataset
-from loomtrain.core.data.distributed_sampler import *
+from loomtrain.core.data.dataset.base import Dataset
+from loomtrain.core.data.sampler import *
+if TYPE_CHECKING:
+    from loomtrain.core.strategy import DataStrategy
 
 
-class LoomDataIter(tud.DataLoader):
+
+class DataIter(tud.DataLoader):
     def __init__(self, 
-                 dataset: "CollateDataset",
+                 dataset: "Dataset",
                  batch_size: "int" = 1,
                  num_epochs: "int" = 1,
                  shuffle: "bool | None" = None, 
                  sampler: "Iterable | None" = None,
                  batch_sampler: "Iterable | None" = None,
                  num_workers: "int" = 0,
+                 collate_fn: "Callable" = None,
                  pin_memory: "bool" = False,
                  drop_last: "bool" = False,
                  ):
@@ -23,10 +27,15 @@ class LoomDataIter(tud.DataLoader):
             sampler = sampler,
             batch_sampler = batch_sampler,
             num_workers = num_workers,
-            collate_fn = dataset.collate_fn,
+            collate_fn = collate_fn,
             pin_memory = pin_memory,
             drop_last = drop_last
         )
+        
+        self.set_state()
+
+        self._stateful_sampler = sampler
+        self._stateful_batch_sampler = batch_sampler
 
         self.num_epochs = num_epochs
         self._current_epoch = 0
@@ -34,6 +43,10 @@ class LoomDataIter(tud.DataLoader):
 
         self.data_iter = iter(self)
         self.next_batch = next(self.data_iter)
+
+    @property
+    def stateful_sampler(self) -> "StatefulSampler":
+        return self._stateful_sampler if self._stateful_sampler is not None else self._stateful_batch_sampler
 
     @property
     def exhausted(self):
@@ -54,18 +67,24 @@ class LoomDataIter(tud.DataLoader):
     def __iter__(self):
         for epoch in range(self.num_epochs):
             self._current_epoch = epoch
-            if epoch < self.consumed_epoch:continue
-            self.set_sampler_state(epoch, self.consumed_epoch, self.consumed_samples)
+            if epoch < self.consumed_epoch: continue
+            self.stateful_sampler.set_state(
+                epoch, 0 if epoch > self.consumed_epoch else self.consumed_samples
+            )
             yield from iter(super().__iter__())
 
 
+    @property
+    def strategy(self) -> "DataStrategy":
+        if hasattr(self, "_strategy_"):
+            return self._strategy_
+    
+    @strategy.setter
+    def strategy(self, strategy: "DataStrategy"):
+        self._strategy_ = strategy
 
 
-    def set_sampler_state(self, current_epoch: int, consumed_epoch:int, consumed_samples):
-        raise NotImplementedError
-
-
-    def set_state(self, consumed_epoch: int, consumed_samples = 0):
+    def set_state(self, consumed_epoch: int = 0, consumed_samples = 0):
         self.consumed_epoch = consumed_epoch
         self.consumed_samples = consumed_samples
     
