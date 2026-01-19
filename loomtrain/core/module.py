@@ -1,87 +1,123 @@
 import os
 import torch
+from typing import TYPE_CHECKING
 from torch import nn
 import torch.distributed as dist
 from transformers import PreTrainedTokenizer
 from collections import defaultdict
 from tqdm import tqdm
+from loomtrain.core.metas import AttrDict, LazyInitializeMeta
 from loomtrain.core.parallel import parallel_state as parallel
-from loomtrain.core.strategy import TrainStrategy
-from loomtrain.core.state import CheckpointConfig, CheckpointMixin
-from loomtrain.core.actor import LoomOptDict, LoomActorGroup
-from loomtrain.core.datamodule import LoomDataModule
+from loomtrain.core.strategy import TrainStrategy, OptimConfig
+from loomtrain.core.state import CheckpointConfig, LoomCheckpointMixin
+from loomtrain.core.modeling.actor import Actor
+if TYPE_CHECKING:
+    from loomtrain.core.datamodule import DataModule
 from loomtrain.core.visualization import Accumulator
 from loomtrain.utils.lora import LoRAConfig, get_peft_model
 from dataclasses import dataclass
+import loomtrain as lt
+ 
 
 
-class LoomModule(CheckpointMixin):
-    def __init__(self, opt_dicts: "list[LoomOptDict] | dict[str, LoomOptDict]" = None, actor_groups: "list[LoomActorGroup] | dict[str, LoomActorGroup]" = None):        
-        assert parallel.is_initialized(), "One must init `LoomTrainer` before init `LoomModule`"
-        super().__init__()
+class Module(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
+    r"""Base class for all modules to be optimized.
 
-        if isinstance(opt_dicts, list):
-            opt_dicts = {f"model_{str(i)}": dic for i, dic in enumerate(opt_dicts)}
+    Your models should also subclass this class.
 
-        self.opt_dicts = opt_dicts
+    THIS `Module` IS DIFFERENT FROM `torch.nn.Module`. 
+    A `loomtrain.core.Module` IMPLEMENTS TRAINING LOGIC, OPTIMIZER,
+    SCHEDULER, ETC. IT IS DESIGNED TO WORK WITH:
+        `loomtrain.core.DataModule`
+        `loomtrain.core.strategy.TrainStrategy` 
+        `loomtrain.core.strategy.DataStrategy`
+    AND BE TRAINED BY:
+        `loomtrain.core.trainer.fit` 
+    
+    Please wrapper your WHOLE model into an Actor and assign it as an attribute of this Module.
+    
+    ONLY THE ACTORS IN THE MODULE WILL BE TRAINED AND SAVED !
 
-        if isinstance(actor_groups, list):
-            actor_groups = {f"model_{str(i)}": dic for i, dic in enumerate(actor_groups)}
+    You may implement the forward in loomtrain.core.Actor, or in loomtrain.core.Module(suggested).
+    
+    Different Actors can have different Optimizer and Scheduler, which is supported by the attribute `optim_configs`:
+        optim_configs: loomtrain.core.OptimConfig | dict[str, loomtrain.core.OptimConfig]
+            A dictionary mapping from the name of the Actor attribute to its OptimConfig.
+            Each OptimConfig contains the optimizer and scheduler configurations for the corresponding Actor.
+            The keys of this dictionary must form a partition of the set of all trainable Actors in the Module.
+        
+        if there is only one Actor in this Module, you can directly pass an OptimConfig instance to optim_configs,
+        else you must pass a dictionary, whose keys are the attribute names of the Actors to be trained. For example:
 
-        self._actor_groups = actor_groups
+        class MyModule(loomtrain.core.Module):
+            def __init__(self, optim_configs):
+                super().__init__(optim_configs)
+                self.actor1 = loomtrain.core.Actor(torch.nn.Linear(10,10))
+                self.actor2 = loomtrain.core.Actor(torch.nn.Conv2d(3,16,3))
+                # Then optim_configs must be a dict like: 
+                    {
+                        "actor1": loomtrain.core.OptimConfig(...), also supporting keys like: actor1.submodule1, actor1.submodule2
+                        "actor2": loomtrain.core.OptimConfig(...)
+                    }
 
-    def _validate(self, datamodule: "LoomDataModule"):
-        logs_dict = dict()
-        if datamodule.is_validating_step:
-            self.eval()
-            datamodule.eval()
-            datamodule._setup_val_data_iter()
-            with torch.no_grad():
-                logs_dict = self.validate(datamodule.val_data_iter)
-            self.train()
-            datamodule.train()
-        return logs_dict
+    """
+
+    def __init__(self, optim_configs: "OptimConfig | dict[str, OptimConfig]", *args, **kwargs):        
+        assert parallel.is_initialized() or (not parallel.is_distributed_allowed), "One must init `Trainer` before init `Module`"
+        super().__init__(*args, **kwargs)
+        if isinstance(optim_configs, OptimConfig):
+            # module means TrainStrategy.module
+            optim_configs = {"module": optim_configs} 
+        self.optim_configs = optim_configs
+        self._check_optim_configs()
+
+    def _check_optim_configs(self):
+        '''The keys of the attribute dictionary optim_configs 
+        must form a partition of the set of all trainable models in the module.'''
+        #TODO
+        return
+        raise NotImplementedError
+
+    def _initialize(self):
+        '''Lazy initialize, Has been implemented in the meta class. Be intialized in `trainer.fit`'''
+        return self._lazy_initialize_()
+
+
+    def set_actor(self, actor_name: str, actor: "Actor"):
+        setattr(self, actor_name, actor)
+
+    @property
+    def actors(self) -> "dict[str, Actor]":
+        # if not hasattr(self, "_actors"):
+        self._actors = AttrDict()
+        for k, v in vars(self).items():
+            if isinstance(v, Actor): self._actors[k] = v
+        return self._actors
 
     @property
     def training(self):
-        return next(self.opt_dicts.values())["actor"].training
+        return next(self.actors.values()).training
     def train(self):
-        for opt_group in self.opt_groups.values():
-            opt_group["actor"].train()
+        for actor in self.actors.values():
+            actor.train()
     def eval(self):
-        for opt_group in self.opt_groups.values():
-            opt_group["actor"].eval()
+        for actor in self.actors.values():
+            actor.eval()
 
-    def connect_datamodule(self, datamodule: "LoomDataModule"):
-        '''must be called before connect_strategy, because total_steps unset'''
+    def _connect_datamodule(self, datamodule: "DataModule"):
+        '''must be called before connect_strategy, because total_steps unset ??????'''
         self.datamodule = datamodule
-        is_first_group = True
-        for group in self.opt_dicts.values():
-            group.total_steps = datamodule.total_train_steps
-            if is_first_group:
-                if not getattr(datamodule.train_dataset, "tokenizer_name", None):
-                    datamodule.train_dataset.tokenizer_name = group.tokenizer_name
-                    datamodule.val_dataset.tokenizer_name = group.tokenizer_name
-                is_first_group = False
 
-    def connect_strategy(self, strategy: "TrainStrategy"):
+        for optim_group in self.strategy.optim_configs.values():
+            optim_group.total_steps = datamodule.total_train_steps
+
+
+    def _connect_strategy(self, strategy: "TrainStrategy"):
         assert parallel.is_initialized()
         assert isinstance(strategy, TrainStrategy)
         self.strategy = strategy
-        self.strategy.config_loomModule_method(self)
-
-        if self._actor_groups is None:
-            for opt_dict in self.opt_dicts.values():
-                opt_dict.collate_type = strategy.data_config.collate_type
-
-            opt_groups = self.setup_module(self.opt_dicts)
-            self.opt_groups = self._setup_actors(opt_groups)
-        else: 
-            self.opt_groups = self._actor_groups
-
-        self.strategy.connect_opt_groups(self.opt_groups)
-        self.setup_self_module()
-        self.zero_grad()
+        self.strategy._connect_module(self)
+        # self.zero_grad()
 
 
     def _save_module(self, checkpoint_config: "CheckpointConfig"):
@@ -100,56 +136,49 @@ class LoomModule(CheckpointMixin):
         if dist.get_rank() == 0:
             print(f"Model Weight: {save_dir} is ready !!!")
     
-    def _setup_actors(self, opt_groups: "dict[str, LoomActorGroup]") -> "dict[str, LoomActorGroup]":
-        for group in opt_groups.values():
-            group.build_actor()
-        return opt_groups
 
-    def setup_self_module(self):
-        '''this function will be called after all LoomActorGroups have be setup.'''
-        ...
-
-    def save_module(self, save_dir: str):
+    def save_module(self, save_dir: str, tag: str):
         '''
         save_dir is already be set different
         This Function can either be implemented manually, or be replaced by train_strategy'''
-        raise NotImplementedError
+        return self.strategy.save_module(save_dir, tag)
 
 
-    def setup_module(self, opt_dicts: "dict[str, LoomOptDict]") -> "dict[str, LoomActorGroup]":
+    def config_module(self):
         '''
-        Setup model, optimizer, scheduler by different strategy
+        Config/Setup model, optimizer, scheduler by different TrainStrategy
         This Function can either be implemented manually, or be replaced by train_strategy'''
-        raise NotImplementedError
+        return self.strategy.config_module()
     
-    def backward(self, actor, loss):
+    def backward(self, loss: torch.Tensor, actor_of_the_loss: Actor = None):
         '''
         This Function should implements the backward process.
         It can either be implemented manually, or be replaced by train_strategy'''
-        raise NotImplementedError
+        return self.strategy.backward(loss, actor_of_the_loss)
 
     def step(self):
         '''
         This Function should implements the optimizer step process.
         It can either be implemented manually, or be replaced by train_strategy'''
-        raise NotImplementedError
+        return self.strategy.step()
 
     def zero_grad(self):        
         '''
         This Function should implements the optimizer/model zero_grad process.
         It can either be implemented manually, or be replaced by train_strategy'''
-        raise NotImplementedError
+        return self.strategy.zero_grad()
 
     def micro_batch_forward_backward(self, batch) -> "dict[str, Accumulator]":
         '''You May implement this function, or implement `forward_backward` directly.'''
-        raise NotImplementedError
+        return self.strategy.micro_batch_forward_backward(batch)
 
     def non_accum_logs_per_step(self) -> "dict[str, Accumulator]":
         '''
         This function returns a dict of variables for being visualized,
-          (Only for those remain the same among different micro batches of a same global batch, and different among different global batches, such as the value of learning rate)
+          (Only for those remain the same among different micro batches of a same global batch, 
+           and different among different global batches, such as the value of learning rate)
         '''
-        return dict()
+        return self.strategy.non_accum_logs_per_step()
 
     def forward_backward(self, batches) -> "dict[str, Accumulator]":
         '''
@@ -169,6 +198,14 @@ class LoomModule(CheckpointMixin):
 
     def micro_batch_validate_forward(self, batch) -> "dict[str, Accumulator]":
         raise NotImplementedError
+    
+    def save_ckpt(self, save_dir, tag):
+        return self.strategy.save_ckpt(save_dir, tag)
+    def load_ckpt(self, saved_dir, tag):
+        return self.strategy.load_ckpt(saved_dir, tag)
+
+    def sub_dir_to_save(self): return "Module_ckpts"
+
 
 
     def validate(self, val_data_iter):
@@ -191,8 +228,19 @@ class LoomModule(CheckpointMixin):
         step_bar.set_postfix(logs_dict)
         return logs_dict
 
+    def _validate(self, datamodule: "DataModule"):
+        logs_dict = dict()
+        if datamodule.is_validating_step:
+            self.eval()
+            datamodule.eval()
+            datamodule._setup_val_data_iter()
+            with torch.no_grad():
+                logs_dict = self.validate(datamodule.val_data_iter)
+            self.train()
+            datamodule.train()
+        return logs_dict
 
-    def update(self, batches):
+    def _update(self, batches):
         '''logic that forward/backward a whole batch then update parameters'''
         train_logs_dict = self.forward_backward(batches)
         self.step()
