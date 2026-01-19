@@ -26,7 +26,7 @@ class CheckpointConfig:
 
 
 
-class CheckpointMixin:
+class LoomCheckpointMixin:
     '''
     This class automatically save training status
     '''
@@ -37,12 +37,12 @@ class CheckpointMixin:
     def global_step(self): return self._global_step
 
 
-    def get_saved_sub_dir(self) -> str:
+    def sub_dir_to_save(self) -> str:
         ''' sub_dir mainly for different types or checkpoint '''
         raise NotImplementedError
     
 
-    def update(self):
+    def _update(self):
         '''update the state'''
         raise NotImplementedError
 
@@ -56,19 +56,18 @@ class CheckpointMixin:
         '''extract saving interval from checkpoint_config and return it'''
         return checkpoint_config.ckpt_interval
 
-    def _update(self, *args, **kwargs):
+    def _update_(self, *args, **kwargs):
         self._global_step += 1
-        return self.update(*args, **kwargs)
+        return self._update(*args, **kwargs)
         
 
     def _save_ckpt(self, checkpoint_config: "CheckpointConfig", inplace: bool = False):
         if self._get_saving_interval(checkpoint_config) % self.global_step: return
-        save_dir = os.path.join(checkpoint_config.save_dir, self.get_saved_sub_dir())
+        save_dir = os.path.join(checkpoint_config.save_dir, self.sub_dir_to_save())
 
-        tag = f"global_step{self.global_step}"
+        tag = f"global_step{self.global_step}"         
         max_ckpts = checkpoint_config.max_ckpts
         max_ckpt_GB = checkpoint_config.max_ckpts_GB
-
 
         
         if dist.get_rank() == 0:
@@ -110,7 +109,7 @@ class CheckpointMixin:
     def _load_ckpt(self, checkpoint_config: "CheckpointConfig", inplace: bool = False):
         self.checkpoint_config = checkpoint_config
         saved_dir = checkpoint_config.save_dir
-        saved_dir = os.path.join(saved_dir, self.get_saved_sub_dir())
+        saved_dir = os.path.join(saved_dir, self.sub_dir_to_save())
         latest_path = os.path.join(saved_dir, "latest")
         
         if not inplace:
