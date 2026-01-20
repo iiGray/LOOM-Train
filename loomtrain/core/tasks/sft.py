@@ -34,9 +34,9 @@ class SFTModule(lt.Module):
             loss_tokens = parallel.all_reduce(loss_mask.int().sum().item()) * parallel.get_dp_count() / 10 ** 9
         )
 
-    def micro_batch_validate_forward(self, batch):
+    def batch_validate_forward(self, batch):
         inputs, attention_masks, loss_masks, seq_lens = batch
-        output = self.actor(sequences = inputs, attention_masks = attention_masks,seq_lens = seq_lens)
+        output = self.actor(sequences = inputs, attention_mask = attention_masks,seq_lens = seq_lens)
         labels = torch.where(attention_masks.bool() & loss_masks.bool(), inputs, self.loss_fn.ignore_index)
 
         gpt_loss = self.loss_fn(output.logits, labels)
