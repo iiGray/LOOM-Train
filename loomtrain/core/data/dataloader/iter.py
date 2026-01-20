@@ -1,13 +1,14 @@
 from typing import Iterable, Callable, TYPE_CHECKING
 import torch.utils.data as tud
 from loomtrain.core.data.dataset.base import Dataset
+from loomtrain.core.data.dataloader.base import StatefulDataIterMixin
 from loomtrain.core.data.sampler import *
 if TYPE_CHECKING:
     from loomtrain.core.strategy import DataStrategy
 
 
 
-class DataIter(tud.DataLoader):
+class DataIter(tud.DataLoader, StatefulDataIterMixin):
     def __init__(self, 
                  dataset: "Dataset",
                  batch_size: "int" = 1,
@@ -31,8 +32,6 @@ class DataIter(tud.DataLoader):
             pin_memory = pin_memory,
             drop_last = drop_last
         )
-        
-        self.set_state()
 
         self._stateful_sampler = sampler
         self._stateful_batch_sampler = batch_sampler
@@ -46,16 +45,13 @@ class DataIter(tud.DataLoader):
 
     @property
     def stateful_sampler(self) -> "StatefulSampler":
-        return self._stateful_sampler if self._stateful_sampler is not None else self._stateful_batch_sampler
+        return self._stateful_sampler if self._stateful_sampler is not None \
+            else self._stateful_batch_sampler
 
     @property
     def exhausted(self):
         return self._exhausted
     
-
-    @property
-    def current_epoch(self):
-        return self._current_epoch
 
     def __next__(self):
         current_batch = self.next_batch
@@ -63,16 +59,14 @@ class DataIter(tud.DataLoader):
         except StopIteration: self._exhausted = True
         return current_batch
 
-
     def __iter__(self):
         for epoch in range(self.num_epochs):
             self._current_epoch = epoch
-            if epoch < self.consumed_epoch: continue
+            if epoch < self.current_epoch: continue
             self.stateful_sampler.set_state(
-                epoch, 0 if epoch > self.consumed_epoch else self.consumed_samples
+                epoch, 0 if epoch > self.current_epoch else self.consumed_samples
             )
             yield from iter(super().__iter__())
-
 
     @property
     def strategy(self) -> "DataStrategy":
@@ -82,13 +76,3 @@ class DataIter(tud.DataLoader):
     @strategy.setter
     def strategy(self, strategy: "DataStrategy"):
         self._strategy_ = strategy
-
-
-    def set_state(self, consumed_epoch: int = 0, consumed_samples = 0):
-        self.consumed_epoch = consumed_epoch
-        self.consumed_samples = consumed_samples
-    
-
-    def get_state(self) -> dict:
-        raise NotImplementedError
-

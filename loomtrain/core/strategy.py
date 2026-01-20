@@ -6,6 +6,7 @@ import torch.utils.data as tud
 import torch.distributed as dist
 from datetime import timedelta
 from loomtrain.dataset.base import CollateDataset
+from loomtrain.core.data.dataloader.base import DataIterStateDict
 from loomtrain.core.data.dataloader.iter import DataIter
 
 # from loomtrain.core.device.mesh import DeviceMes
@@ -123,17 +124,17 @@ class DataStrategy:
         raise NotImplementedError
 
     def save_ckpt(self, save_dir: str, tag: str):
-        save_json(self.train_data_iter.get_state()), path_join(save_dir, "states.json")
+        save_json(self.train_data_iter.get_state(), path_join(save_dir, "dataIter_states.json"))
     
     def load_ckpt(self, saved_dir: str, tag: str):
+        self.current_epoch = 0
         self.consumed_samples = 0
-        self.consumed_epoch = 0
-        if IO.exists(saved_dir) and IO.exists(path_join(saved_dir, "states.json")):
-            states = read_json(path_join(saved_dir, "states.json"))
-            self.consumed_samples = states["consumed_samples"]
-            self.consumed_epoch = states['consumed_epoch']
+        if IO.exists(saved_dir) and IO.exists(path_join(saved_dir, "dataIter_states.json")):
+            states = DataIterStateDict(** read_json(path_join(saved_dir, "dataIter_states.json")))
+            self.current_epoch = states.current_epoch
+            self.consumed_samples = states.consumed_samples
         
-        self.train_data_iter.set_state(consumed_epoch = self.consumed_epoch, 
+        self.train_data_iter.set_state(consumed_epoch = self.current_epoch, 
                                        consumed_samples = self.consumed_samples)
         
     def setup_data_iter(self, 
