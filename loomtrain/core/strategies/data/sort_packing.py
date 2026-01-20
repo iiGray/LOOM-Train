@@ -14,12 +14,12 @@ from loomtrain.core.data.dataloader.iter import DataIter
 
 class SortPackingStrategy(DataStrategy):
         
-    def setup_data_iter(self, dataset: "Dataset") -> "DataIter":
+    def setup_data_iter(self, dataset: "Dataset", batch_size: "int") -> "DataIter":
 
         Sampler = DistributedSampler
         sampler_type = 'sampler'
         dataloader_kwargs = dict(
-            batch_size = self.data_config.micro_batch_size,
+            batch_size = batch_size,
             num_epochs = self.data_config.num_epochs,
             collate_fn = self.datamodule.collate_fn,
             pin_memory = self.data_config.pin_memory,
@@ -50,8 +50,8 @@ class SortPackingStrategy(DataStrategy):
         )
 
     def setup_train_data_iter(self):
-        return self.setup_data_iter(self.datamodule.get_train_dataset())
+        return self.setup_data_iter(self.datamodule.get_train_dataset(), self.data_config.micro_batch_size)
 
     def setup_val_data_iter(self):
-        return self.setup_data_iter(self.datamodule.get_val_dataset())
+        return self.setup_data_iter(self.datamodule.get_val_dataset(), self.data_config.val_batch_size)
     
