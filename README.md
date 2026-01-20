@@ -1,5 +1,5 @@
 # 🏗️ Loom-Train  
-*A Simple & Efficient Training Framework for Long-Context LLMs*
+*A Simple & Efficient Training Framework for Long-Context LLMs/Agents*
 <div class="image-container h-64 md:h-80">
   <img src="assets/LOOM-Train-LOGO.png" 
        alt="LOOM-Scope Logo" 
