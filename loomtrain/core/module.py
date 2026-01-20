@@ -196,7 +196,7 @@ class Module(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
         return {k: v.get_value() for k, v in logs_dict.items()}
 
 
-    def micro_batch_validate_forward(self, batch) -> "dict[str, Accumulator]":
+    def batch_validate_forward(self, batch) -> "dict[str, Accumulator]":
         raise NotImplementedError
     
     def save_ckpt(self, save_dir, tag):
@@ -214,15 +214,16 @@ class Module(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
         logs_dict = defaultdict(Accumulator)
         
         step_bar = tqdm(
-                range(len(self.eval_dataloader)),
+                range(len(val_data_iter)),
                 desc = f"Eval stage of steps {self.global_step}",
                 disable = parallel.get_rank() != 0
             )
-        for batches in val_data_iter:
-            for batch in batches:
-                mirco_logs_dict = self.validate_forward(batch)
-                for k, v in mirco_logs_dict.items():
-                    logs_dict[k] += v
+        for batch in val_data_iter:
+            # for batch in batches:
+            batch = self.datamodule.to_current_device(batch)
+            mirco_logs_dict = self.batch_validate_forward(batch)
+            for k, v in mirco_logs_dict.items():
+                logs_dict[k] += v
             step_bar.update()
         logs_dict = {k: v.get_value() for k, v in logs_dict.items()}
         step_bar.set_postfix(logs_dict)
@@ -233,7 +234,6 @@ class Module(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
         if datamodule.is_validating_step:
             self.eval()
             datamodule.eval()
-            datamodule._setup_val_data_iter()
             with torch.no_grad():
                 logs_dict = self.validate(datamodule.val_data_iter)
             self.train()
