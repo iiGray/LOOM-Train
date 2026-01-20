@@ -55,9 +55,3 @@ class SortPackingStrategy(DataStrategy):
     def setup_val_data_iter(self):
         return self.setup_data_iter(self.datamodule.get_val_dataset())
     
-
-    def save_ckpt(self, save_dir, tag):
-        raise NotImplementedError
-
-    def load_ckpt(self, saved_dir, tag):
-        raise NotImplementedError

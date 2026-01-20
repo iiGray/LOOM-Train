@@ -136,7 +136,7 @@ class DistributedSampler(StatefulSampler):
     def __len__(self) -> int:
         return self.num_samples - self.consumed_indicies
 
-    def set_state(self, epoch: int, consumed_samples = 0) -> None:
+    def set_state(self, current_epoch: int, consumed_samples = 0) -> None:
         r"""
         Set the epoch for this sampler.
 
@@ -147,7 +147,7 @@ class DistributedSampler(StatefulSampler):
         Args:
             epoch (int): Epoch number.
         """
-        self.epoch = epoch
+        self.epoch = current_epoch
         self.consumed_indicies = consumed_samples // self.num_replicas
 
 
@@ -247,7 +247,7 @@ class DistributedBucketSampler(StatefulSampler):
     def __len__(self) -> int:
         return self.num_samples - self.consumed_indicies
 
-    def set_state(self, epoch: int, consumed_samples = 0) -> None:
+    def set_state(self, current_epoch: int, consumed_samples = 0) -> None:
         r"""
         Set the epoch for this sampler.
 
@@ -258,5 +258,5 @@ class DistributedBucketSampler(StatefulSampler):
         Args:
             epoch (int): Epoch number.
         """
-        self.epoch = epoch
+        self.epoch = current_epoch
         self.consumed_indicies = consumed_samples // self.num_replicas

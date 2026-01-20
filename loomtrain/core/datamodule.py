@@ -132,7 +132,6 @@ class DataModule(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
 
     def setup_val_data_iter(self) -> "DataIter":
         return self.strategy.setup_val_data_iter()
-    
 
 
     def collate_fn(self, item_list):
