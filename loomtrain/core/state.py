@@ -62,7 +62,7 @@ class LoomCheckpointMixin:
         
 
     def _save_ckpt(self, checkpoint_config: "CheckpointConfig", inplace: bool = False):
-        if self._get_saving_interval(checkpoint_config) % self.global_step: return
+        if self.global_step % self._get_saving_interval(checkpoint_config): return
         save_dir = os.path.join(checkpoint_config.save_dir, self.sub_dir_to_save())
 
         tag = f"global_step{self.global_step}"         

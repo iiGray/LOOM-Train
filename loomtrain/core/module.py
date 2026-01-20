@@ -121,7 +121,7 @@ class Module(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
 
 
     def _save_module(self, checkpoint_config: "CheckpointConfig"):
-        if checkpoint_config.weight_interval % self.global_step: return
+        if self.global_step % checkpoint_config.weight_interval: return
 
         save_dir = os.path.join(checkpoint_config.save_dir, "models", f"global_step{self.global_step}")
         if dist.get_rank() == 0:
