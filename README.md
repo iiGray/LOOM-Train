@@ -20,8 +20,8 @@
 
 ## 📅 Update Log
 
-- **📅 2025-10-07** — 🚀 **Initial Release**: Loom-Train is now live!  
-  ✅ Native support for [🤗 Hugging Face Trainer](https://github.com/huggingface/transformers)  
+- **📅 2026-01-20** — 🚀 **Initial Release**: Loom-Train is now live!  
+  ✅ Native support for CUSTOM training tasks   
   ✅ Optimized attention with [🌀 Ring-Flash-Attention](https://github.com/zhuzilin/ring-flash-attention)  
   ✅ Lightweight, plug-and-play design for long-sequence training (128K+ tokens)
 
