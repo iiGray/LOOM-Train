@@ -6,9 +6,8 @@ from torch.utils.tensorboard import SummaryWriter
 from loomtrain.core.utils import basename, dirname
 from loomtrain.core.state import LoomCheckpointMixin
 from loomtrain.core.utils import (
-    IO, rank0only_decorator, rank0print,
+    IO, rank0only_decorator
 )
-
 
 @dataclass
 class WandbConfig:
