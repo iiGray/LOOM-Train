@@ -123,10 +123,10 @@ class DataStrategy:
     def load_sampler_fn(self, sampler: "DistributedSampler | DistributedBucketSampler", consumed_epoch: int , consumed_samples: int):
         raise NotImplementedError
 
-    def save_ckpt(self, save_dir: str, tag: str):
+    def save_ckpt(self, save_dir: str, tag: str = None):
         save_json(self.train_data_iter.get_state(), path_join(save_dir, "dataIter_states.json"))
     
-    def load_ckpt(self, saved_dir: str, tag: str):
+    def load_ckpt(self, saved_dir: str, tag: str = None):
         self.current_epoch = 0
         self.consumed_samples = 0
         if IO.exists(saved_dir) and IO.exists(path_join(saved_dir, "dataIter_states.json")):
