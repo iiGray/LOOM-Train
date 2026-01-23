@@ -6,7 +6,7 @@ from contextlib import contextmanager
 if TYPE_CHECKING:
     from loomtrain.core.datamodule import DataModule
 from loomtrain.core.metas import *
-from loomtrain.core.data.utils import split_dataset
+from loomtrain.core.data.utils import split_dataset, filtering, mapping
 
 def role_template(message: "str | list[dict[str, str]]", role: Literal["system", "user", "assistant"]):
     if isinstance(message, str):
@@ -32,27 +32,27 @@ class Dataset(metaclass = LazyInitializeMeta):
             if is None, the get_fn will be replaced by the `get_data` implemented in DataModule
     '''
     def __init__(self, dataset: datasets.Dataset, sample_count: int = None, sample_ratio: float = None, 
-                 filter_fn = None, map_fn = None, get_fn = None,
+                 filter_fn = None, map_fn = None, filter_first: "bool" = True, map_first: "bool" = False, get_fn = None,
                  random_seed: int = 42, num_proc:int = 8, **key_dict):
         for k, v in key_dict.items():
             setattr(self, k, v)
         if filter_fn is None: filter_fn = self.filter_data
         if map_fn is None: map_fn = self.map_data
         if get_fn is None: get_fn = self.get_data
-        
-        # dataset = dataset.filter(filter_fn, num_proc = num_proc) \
-        #     if filter_fn is not None else dataset
 
-        # dataset = dataset.map(map_fn, remove_columns = dataset.column_names, num_proc = num_proc) \
-        #     if map_fn is not None else dataset
+        if filter_first:
+            assert not map_first, "Only one of filter_first and map_first can be True."
+            dataset = filtering(dataset, filter_fn, num_processes = num_proc) \
+                if filter_fn is not None else dataset
+            dataset = mapping(dataset, map_fn, num_processes = num_proc) \
+                if map_fn is not None else dataset
+        else:
+            assert not filter_first, "Only one of filter_first and map_first can be True."
+            dataset = mapping(dataset, map_fn, num_processes = num_proc) \
+                if map_fn is not None else dataset
+            dataset = filtering(dataset, filter_fn, num_processes = num_proc) \
+                if filter_fn is not None else dataset
 
-
-        dataset = [k for k in dataset if filter_fn(k)] \
-            if filter_fn is not None else dataset
-
-        dataset = [map_fn(k) for k in dataset] \
-            if map_fn is not None else dataset
-        
         self.get_fn = get_fn
 
         self.dataset = dataset
