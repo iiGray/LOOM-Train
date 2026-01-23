@@ -190,11 +190,10 @@ class DeepspeedStrategy(TrainStrategy):
 
     #     return step, update_steps_per_epoch, start_epoch, consumed_samples, total_tokens, loss_tokens
     
-    def save_module(self, save_dir: str):
-        
-        for name, group in self.opt_groups.items():
+    def save_module(self, save_dir: str, tag: str):
+        save_dir = os.path.join(save_dir, tag)
+        for name, actor in self.opt_groups.items():
             gathered_state_dict = dict()
-            actor = group.actor
             model_to_save = actor.model
             assert isinstance(model_to_save, deepspeed.DeepSpeedEngine)
             
@@ -252,7 +251,10 @@ class DeepspeedStrategy(TrainStrategy):
 
                 model_to_save.config.to_json_file(os.path.join(csave_dir, "config.json"))
 
-                group.tokenizer.save_pretrained(csave_dir)
+                for tokenizer_file in ["special_tokens_map.json", "tokenizer_config.json", "tokenizer.json"]:
+                    if IO.exists(IO.path(actor.init_args.model_path, tokenizer_file)):
+                        IO.copy(IO.path(actor.init_args.model_path, tokenizer_file),
+                                IO.path(csave_dir, tokenizer_file))
 
 
                 train_from_model_path = model_to_save.config._name_or_path
