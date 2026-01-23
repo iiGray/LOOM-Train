@@ -95,8 +95,8 @@ def fit(module: "Module",
         
         vismodule._update_(state_dict)
 
-        datamodule._save_ckpt(checkpoint_config, inplace = True)
-        module._save_ckpt(checkpoint_config)
+        datamodule._save_ckpt(checkpoint_config, inplace = False)
+        module._save_ckpt(checkpoint_config, inplace = False, update_tag = True)
         vismodule._save_ckpt(checkpoint_config, inplace = True)
 
         module._save_module(checkpoint_config) # save module weights for inference
