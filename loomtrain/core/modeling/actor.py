@@ -8,7 +8,7 @@ from transformers.modeling_outputs import (
     SequenceClassifierOutputWithPast
 )
 
-
+from loomtrain.core.metas import AttrDict
 from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.modeling.customs.rm_modeling import train_forwards
 
@@ -16,7 +16,7 @@ from loomtrain.core.utils.init_hf import init_model, init_tokenizer
 
 
 def get_actor_cls(actor_type: Literal["causal", "classifier"] = "causal", 
-                  collate_type: Literal["packing", "padding"] = "packing") -> "PackingGPT | PackingRM":
+                  collate_type: Literal["packing", "padding"] = "packing") -> "type[Actor]":
     if (actor_type, collate_type) == ("causal", "packing"):
         return PackingGPT
     
@@ -27,8 +27,11 @@ def get_actor_cls(actor_type: Literal["causal", "classifier"] = "causal",
 def init_actor(model_path, 
                model_type: str = "causal", 
                collate_type: Literal["packing", "padding"] = "packing") -> "Actor":
-    return get_actor_cls(model_type, collate_type)(init_model(model_path, model_type = model_type))
-
+    actor = get_actor_cls(model_type, collate_type)(init_model(model_path, model_type = model_type))
+    actor.init_args = AttrDict(model_path = model_path, 
+                               model_type = model_type, 
+                               collate_type = collate_type)
+    return actor
 
 class Actor(nn.Module):
     '''
@@ -39,6 +42,15 @@ class Actor(nn.Module):
         self.model = model
         self.trainable = trainable
         self._optim_objects_ = {} 
+
+    @property
+    def init_args(self):
+        if not hasattr(self, "_init_args_"):
+            self._init_args_ = AttrDict(model_path = None, model_type = None, collate_type = None)
+        return self._init_args_
+    @init_args.setter
+    def init_args(self, args: "AttrDict"):
+        self._init_args_ = args
 
     @property
     def optimizer(self):
