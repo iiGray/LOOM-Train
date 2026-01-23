@@ -99,7 +99,10 @@ def add_argument(*args, **kwargs):
 
 def _add_data_config_arguments(parser: "argparse.ArgumentParser"):
     group = parser.add_argument_group(title = "Data Config Arguments")
-
+    group.add_argument(
+        "--val-split", type = str , default = 'val',
+        help = "The split name of validation dataset"
+    )
     group.add_argument(
         "--collate-type", type = str, choices = ['packing', 'padding'] , default = 'packing',
         help = "The collate type of DataLoader, if packing, datas will be concatenated from head to tail"
