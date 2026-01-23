@@ -61,14 +61,14 @@ class LoomCheckpointMixin:
         return self._update(*args, **kwargs)
         
 
-    def _save_ckpt(self, checkpoint_config: "CheckpointConfig", inplace: bool = False):
+    def _save_ckpt(self, checkpoint_config: "CheckpointConfig", inplace: bool = False, update_tag: "bool" = False):
         if self.global_step % self._get_saving_interval(checkpoint_config): return
-        save_dir = os.path.join(checkpoint_config.save_dir, self.sub_dir_to_save())
-
-        tag = f"global_step{self.global_step}"         
+        which = f"global_step{self.global_step}"
+        tag = self.sub_dir_to_save()         
         max_ckpts = checkpoint_config.max_ckpts
         max_ckpt_GB = checkpoint_config.max_ckpts_GB
 
+        save_dir = os.path.join(checkpoint_config.save_dir, which)
         
         if dist.get_rank() == 0:
             os.makedirs(save_dir, exist_ok = True)
@@ -97,9 +97,9 @@ class LoomCheckpointMixin:
 
         self.save_ckpt(save_dir, tag = tag)
         
-        if not inplace:
-            with open(os.path.join(save_dir, "latest"), "w") as f:
-                f.write(tag)    
+        if (not inplace) and update_tag:
+            with open(os.path.join(checkpoint_config.save_dir, "latest"), "w") as f:
+                f.write(which)    
 
         if dist.get_rank() == 0:
             print(f"{self.__class__.__name__} Checkpoint: {save_dir}/{tag} is ready !!!")
@@ -109,8 +109,8 @@ class LoomCheckpointMixin:
     def _load_ckpt(self, checkpoint_config: "CheckpointConfig", inplace: bool = False):
         self.checkpoint_config = checkpoint_config
         saved_dir = checkpoint_config.save_dir
-        saved_dir = os.path.join(saved_dir, self.sub_dir_to_save())
         latest_path = os.path.join(saved_dir, "latest")
+        tag = self.sub_dir_to_save()
         
         if not inplace:
             if not os.path.exists(saved_dir) or (not os.path.exists(latest_path)):
@@ -118,16 +118,16 @@ class LoomCheckpointMixin:
                             f" because ckpt path:`{saved_dir}` doesn't exist .")
                 return
             
-        tag = None
-        if os.path.exists(latest_path): # only for those ckpts having multiple files
-            with open(latest_path, "r") as f:
-                tag = f.read().strip()
+        assert os.path.exists(latest_path)
+        with open(latest_path, "r") as f:
+            which = f.read().strip()
+        saved_dir = os.path.join(saved_dir, which)
         try:
             load_result = self.load_ckpt(saved_dir, tag) 
             if dist.get_rank() == 0:
-                print(f"Successfully load {self.__class__.__name__} Checkpoint from: {saved_dir} !!!")
+                print(f"Successfully load {self.__class__.__name__} Checkpoint from: {saved_dir}/{tag} !!!")
             return load_result
 
         except Exception as e:
             if dist.get_rank() == 0:
-                print(f"Fail to load {self.__class__.__name__} Checkpoint from: {saved_dir}")
+                print(f"Fail to load {self.__class__.__name__} Checkpoint from: {saved_dir}/{tag}")
