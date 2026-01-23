@@ -208,6 +208,9 @@ class IO:
 
         return [IO.read_file(path) for path in list_path]
 
+    @staticmethod
+    def path(*args) -> str:
+        return os.path.join(*args)
 
     @staticmethod
     def save_file(obj: object, path: str):
