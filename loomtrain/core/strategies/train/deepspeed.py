@@ -251,10 +251,7 @@ class DeepspeedStrategy(TrainStrategy):
 
                 model_to_save.config.to_json_file(os.path.join(csave_dir, "config.json"))
 
-                for tokenizer_file in ["special_tokens_map.json", "tokenizer_config.json", "tokenizer.json"]:
-                    if IO.exists(IO.path(actor.init_args.model_path, tokenizer_file)):
-                        IO.copy(IO.path(actor.init_args.model_path, tokenizer_file),
-                                IO.path(csave_dir, tokenizer_file))
+                init_tokenizer(actor.init_args.model_path).save_pretrained(csave_dir)
 
 
                 train_from_model_path = model_to_save.config._name_or_path

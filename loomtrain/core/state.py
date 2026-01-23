@@ -118,10 +118,10 @@ class LoomCheckpointMixin:
                             f" because ckpt path:`{saved_dir}` doesn't exist .")
                 return
             
-        assert os.path.exists(latest_path)
-        with open(latest_path, "r") as f:
-            which = f.read().strip()
-        saved_dir = os.path.join(saved_dir, which)
+        if os.path.exists(latest_path): 
+            with open(latest_path, "r") as f:
+                which = f.read().strip()
+            saved_dir = os.path.join(saved_dir, which)
         try:
             load_result = self.load_ckpt(saved_dir, tag) 
             if dist.get_rank() == 0:
