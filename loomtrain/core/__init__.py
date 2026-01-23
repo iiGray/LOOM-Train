@@ -10,5 +10,4 @@ from loomtrain.core.strategies.train import *
 from loomtrain.core.strategies.data import *
 from loomtrain.core.strategies import train as train_strategy
 from loomtrain.core.strategies import data as data_strategy
-from loomtrain.core.tasks import *
 from loomtrain.core import data
