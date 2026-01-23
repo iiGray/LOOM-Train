@@ -62,7 +62,7 @@ class Module(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
 
     """
 
-    def __init__(self, optim_configs: "OptimConfig | dict[str, OptimConfig]", *args, **kwargs):        
+    def __init__(self, optim_configs: "OptimConfig | dict[str, OptimConfig]", stat_batch_as_unit: "bool" = False, *args, **kwargs):        
         assert parallel.is_initialized() or (not parallel.is_distributed_allowed), "One must init `Trainer` before init `Module`"
         super().__init__(*args, **kwargs)
         if isinstance(optim_configs, OptimConfig):
@@ -70,6 +70,8 @@ class Module(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
             optim_configs = {"module": optim_configs} 
         self.optim_configs = optim_configs
         self._check_optim_configs()
+
+        self.stat_batch_as_unit = stat_batch_as_unit
 
     def _check_optim_configs(self):
         '''The keys of the attribute dictionary optim_configs 
@@ -123,12 +125,12 @@ class Module(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
     def _save_module(self, checkpoint_config: "CheckpointConfig"):
         if self.global_step % checkpoint_config.weight_interval: return
 
-        save_dir = os.path.join(checkpoint_config.save_dir, "models", f"global_step{self.global_step}")
+        save_dir = os.path.join(checkpoint_config.save_dir, f"global_step{self.global_step}")
         if dist.get_rank() == 0:
             os.makedirs(save_dir, exist_ok = True)
         dist.barrier()
 
-        self.save_module(save_dir)
+        self.save_module(save_dir, "model_weights")
         
         dist.barrier()
         torch.cuda.synchronize()
@@ -191,7 +193,7 @@ class Module(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
         for batch in batches:
             mirco_logs_dict = self.micro_batch_forward_backward(batch)
             for k, v in mirco_logs_dict.items():
-                if not isinstance(v, Accumulator): v = Accumulator(v, 1)
+                if not isinstance(v, Accumulator): v = Accumulator(v, 1 if self.stat_batch_as_unit else len(batch))
                 logs_dict[k] += v
         return {k: v.get_value() for k, v in logs_dict.items()}
 
@@ -223,6 +225,7 @@ class Module(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
             batch = self.datamodule.to_current_device(batch)
             mirco_logs_dict = self.batch_validate_forward(batch)
             for k, v in mirco_logs_dict.items():
+                if not isinstance(v, Accumulator): v = Accumulator(v, 1 if self.stat_batch_as_unit else len(batch))
                 logs_dict[k] += v
             step_bar.update()
         logs_dict = {k: v.get_value() for k, v in logs_dict.items()}
