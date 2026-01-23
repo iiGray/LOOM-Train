@@ -319,6 +319,29 @@ def set_world_size(size: int = None):
     if size is None: size = dist.get_world_size()
     _WORLD_SIZE_ = size
 
+def get_process_size():
+    '''
+    The only difference between process size and world size is that
+    process size will return 1 if distributed is not initialized.
+    This is useful when we want to split dataset according to process size.
+    '''
+    global _WORLD_SIZE_
+    return 1 if _WORLD_SIZE_ is None else _WORLD_SIZE_
+
+def get_process_rank():
+    '''
+    The only difference between process rank and rank is that
+    process rank will return 0 if distributed is not initialized.
+    This is useful when we want to split dataset according to process rank.
+    '''
+    global _RANK_
+    return 0 if _RANK_ is None else _RANK_
+
+def process_barrier():
+    global _WORLD_SIZE_
+    if _WORLD_SIZE_ is not None:
+        dist.barrier()
+
 
 
 def set_initialized():
