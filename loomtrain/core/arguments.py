@@ -100,6 +100,10 @@ def add_argument(*args, **kwargs):
 def _add_data_config_arguments(parser: "argparse.ArgumentParser"):
     group = parser.add_argument_group(title = "Data Config Arguments")
     group.add_argument(
+        "--data-cache-dir", type = str , default = ".cache/loomtrain/processed_datasets",
+        help = "The cache directory for processed datasets"
+    )
+    group.add_argument(
         "--val-split", type = str , default = 'val',
         help = "The split name of validation dataset"
     )
@@ -222,7 +226,10 @@ def _add_visulization_config_arguments(parser: "argparse.ArgumentParser"):
         "--logtype", type = str, choices = ['tensorboard', 'wandb', ''], default = 'tensorboard',
         help = "The type of visulization tool"
     )
-
+    group.add_argument(
+        "--wandb-api", type = str, default = None,
+        help = "The wandb API key"
+    )
     group.add_argument(
         "--wandb-entity", type = str, default = None,
         help = "The wandb entity (team) name"
