@@ -185,4 +185,4 @@ class SFTDataModule(lt.DataModule):
         return self.dataset_dict["train"]
     
     def get_val_dataset(self):
-        return self.dataset_dict["val"]
+        return self.dataset_dict[args().val_split]
