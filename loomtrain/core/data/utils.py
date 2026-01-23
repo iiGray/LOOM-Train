@@ -35,8 +35,8 @@ def split_dataset(dataset: Dataset,
 
 
 def mapping(objs: Iterable, 
-            worker: Callable, 
-            tool: Callable = lambda :tuple(),
+            map_fn: Callable, 
+            args_fn: Callable = lambda :tuple(),
             num_processes: int = 8):
     '''tools : a function building global variables costing time, like tokenizer'''
     from mptools import Marks
@@ -47,7 +47,8 @@ def mapping(objs: Iterable,
         while True:
             obj = get_queue.get()
             if obj == Marks.stop: break
-            to_queue.put(wk(obj, *t))
+            obj, index = obj
+            to_queue.put((wk(obj, *t), index))
 
     to_queue = mp.Queue()
     get_queue = mp.Queue()
@@ -55,26 +56,26 @@ def mapping(objs: Iterable,
     processes = []
     for i in range(num_processes):
         p = mp.Process(target=mapping_worker,
-                       args=(worker, tool, to_queue, get_queue))
+                       args=(map_fn, args_fn, to_queue, get_queue))
         p.start()
         processes += [p]
 
     total, ret = 0, []
     for obj in tqdm(objs, desc = "Preparing"): 
         total += 1
-        to_queue.put(obj)
+        to_queue.put((obj, total))
     for _ in range(num_processes): to_queue.put(Marks.stop)
     for _ in tqdm(range(total), desc = "Mapping"): ret += [get_queue.get()]
     for p in processes: p.join()
-
+    ret = [k for k, _ in sorted(ret, key = lambda x:x[1])]
     return ret
     
 
 
 
 def filtering(objs: Iterable, 
-              filter: Callable, 
-              tool: Callable = lambda :tuple(), 
+              filter_fn: Callable, 
+              args_fn: Callable = lambda :tuple(), 
               num_processes: int = 8):
     '''tools : a function building global variables costing time, like tokenizer'''
     from mptools import Marks
@@ -85,7 +86,8 @@ def filtering(objs: Iterable,
         while True:
             obj = get_queue.get()
             if obj == Marks.stop: break
-            if ft(obj, *t): to_queue.put(obj)
+            obj, index = obj
+            if ft(obj, *t): to_queue.put((obj, index))
             else: to_queue.put(Marks.stop)
 
     to_queue = mp.Queue()
@@ -94,20 +96,20 @@ def filtering(objs: Iterable,
     processes = []
     for i in range(num_processes):
         p = mp.Process(target=filtering_worker,
-                       args=(filter, tool, to_queue, get_queue))
+                       args=(filter_fn, args_fn, to_queue, get_queue))
         p.start()
         processes += [p]
 
     total, ret = 0, []
     for obj in tqdm(objs, desc = "Preparing"): 
         total += 1
-        to_queue.put(obj)
+        to_queue.put((obj, total))
     for _ in range(num_processes): to_queue.put(Marks.stop)
     for _ in tqdm(range(total), desc="Filtering"): 
         obj = get_queue.get()
         if obj != Marks.stop: ret += [obj]
     for p in processes: p.join()
-
+    ret = [k for k, _ in sorted(ret, key = lambda x:x[1])]
     return ret
     
 
