@@ -33,6 +33,16 @@ def split_dataset(dataset: Dataset,
                                              splits)})
 
 
+def chunks(lst: list, chunk_num: int):
+    """Yield successive n-sized chunks from lst."""
+    chunk_width = len(lst) // chunk_num
+    ones = chunk_num - len(lst) % chunk_num 
+    p = 0
+    for i in range(chunk_num):
+        if i == ones: chunk_width += 1
+        yield [lst[j] for j in range(p, p + chunk_width)]
+        p += chunk_width
+
 
 def mapping(objs: Iterable, 
             map_fn: Callable, 
