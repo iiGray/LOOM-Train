@@ -6,6 +6,7 @@ from contextlib import contextmanager
 if TYPE_CHECKING:
     from loomtrain.core.datamodule import DataModule
 from loomtrain.core.metas import *
+from loomtrain.core.data.utils import split_dataset
 
 def role_template(message: "str | list[dict[str, str]]", role: Literal["system", "user", "assistant"]):
     if isinstance(message, str):
@@ -190,6 +191,8 @@ class DatasetDict(metaclass = LazyInitializeMeta):
             dataset_dict = datasets.load_from_disk(dataset_dict_path)
         elif load_mode == "from_json":
             dataset_dict = datasets.load_dataset("json", data_files=dataset_dict_path)
+            if len(dataset_dict) == 1 and "train" in dataset_dict:
+                dataset_dict = split_dataset(dataset_dict["train"], random_seed = random_seed)
         elif load_mode == "from_csv":
             dataset_dict = datasets.load_dataset("csv", data_files=dataset_dict_path)
 
