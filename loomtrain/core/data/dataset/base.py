@@ -1,19 +1,28 @@
-import torch, random, datasets
+import torch, random, datasets, hashlib
 import torch.utils.data as tud
-from typing import Literal, Iterator, TYPE_CHECKING
+from typing import Literal, Iterator, Callable, TYPE_CHECKING
 from functools import partial
 from contextlib import contextmanager
 if TYPE_CHECKING:
     from loomtrain.core.datamodule import DataModule
 from loomtrain.core.metas import *
-from loomtrain.core.data.utils import split_dataset, filtering, mapping
-
+from loomtrain.core.data.utils import split_dataset, filtering, mapping, chunks
+from loomtrain.core.utils import IO, read_pkl, save_pkl
+from loomtrain.core.arguments import args
+from loomtrain.core.parallel import parallel_state as parallel
 def role_template(message: "str | list[dict[str, str]]", role: Literal["system", "user", "assistant"]):
     if isinstance(message, str):
         message = [{"role": role, "content": message}]
     return message
 
-
+def dataset_hashvalue(dataset: "list | datasets.Dataset"):
+    m = hashlib.md5()
+    for i in range(min(1000, len(dataset))):
+        m.update(str(dataset[i]).encode('utf-8'))
+    m.update(str(args().model_path).encode('utf-8'))
+    m.update(str(args().tokenizer_path).encode('utf-8'))
+    m.update(str(args().max_data_length).encode('utf-8'))
+    return m.hexdigest()
 
 
 class Dataset(metaclass = LazyInitializeMeta):
@@ -31,27 +40,53 @@ class Dataset(metaclass = LazyInitializeMeta):
             the getitem function, finally return the fully processed (such as tokenized) data for training.
             if is None, the get_fn will be replaced by the `get_data` implemented in DataModule
     '''
-    def __init__(self, dataset: datasets.Dataset, sample_count: int = None, sample_ratio: float = None, 
-                 filter_fn = None, map_fn = None, filter_first: "bool" = True, map_first: "bool" = False, get_fn = None,
-                 random_seed: int = 42, num_proc:int = 8, **key_dict):
+    def __init__(self, dataset: "datasets.Dataset", sample_count: "int" = None, sample_ratio: "float" = None, 
+                 filter_fn: "Callable" = None, map_fn: "Callable" = None, 
+                 filter_first: "bool" = True, map_first: "bool" = False, 
+                 get_fn: "Callable" = None, 
+                 random_seed: "int" = 42, num_proc: "int" = 8, **key_dict):
         for k, v in key_dict.items():
             setattr(self, k, v)
         if filter_fn is None: filter_fn = self.filter_data
         if map_fn is None: map_fn = self.map_data
         if get_fn is None: get_fn = self.get_data
+        cache_dir = args().data_cache_dir
+        hash_dir = dataset_hashvalue(dataset)
+        if cache_dir is not None:
+            cache_dir = IO.path(cache_dir, hash_dir)
+        try:
+            assert (cache_dir is not None) and IO.exists(cache_dir), "Cache not found."
+            cached_dataset = sum([read_pkl(cache_path) for cache_path in sorted(IO.read_path(cache_dir))], [])
+            assert len(cached_dataset) > 0, "Cache is empty."
+            dataset = cached_dataset
+            if parallel.get_process_rank() == 0:
+                print("Successfully load processed dataset from cache:", cache_dir)
+        except Exception as e:
+            
+            dataset = [d for i, d in enumerate(chunks(dataset, parallel.get_process_size())) \
+                            if i == parallel.get_process_rank()][0]
+            parallel.process_barrier()
+            if filter_first:
+                assert not map_first, "Only one of filter_first and map_first can be True."
+                dataset = filtering(dataset, filter_fn, num_processes = num_proc) \
+                    if filter_fn is not None else dataset
+                dataset = mapping(dataset, map_fn, num_processes = num_proc) \
+                    if map_fn is not None else dataset
+            else:
+                assert not filter_first, "Only one of filter_first and map_first can be True."
+                dataset = mapping(dataset, map_fn, num_processes = num_proc) \
+                    if map_fn is not None else dataset
+                dataset = filtering(dataset, filter_fn, num_processes = num_proc) \
+                    if filter_fn is not None else dataset
+            
+            if cache_dir is not None:
+                IO.mkdir(cache_dir)
+                save_pkl(dataset, IO.path(cache_dir, f"part{parallel.get_process_rank()}.pkl"))
+                parallel.process_barrier()
+                if parallel.get_process_rank() == 0:
+                    print("Successfully save Processed dataset to cache:", cache_dir)
 
-        if filter_first:
-            assert not map_first, "Only one of filter_first and map_first can be True."
-            dataset = filtering(dataset, filter_fn, num_processes = num_proc) \
-                if filter_fn is not None else dataset
-            dataset = mapping(dataset, map_fn, num_processes = num_proc) \
-                if map_fn is not None else dataset
-        else:
-            assert not filter_first, "Only one of filter_first and map_first can be True."
-            dataset = mapping(dataset, map_fn, num_processes = num_proc) \
-                if map_fn is not None else dataset
-            dataset = filtering(dataset, filter_fn, num_processes = num_proc) \
-                if filter_fn is not None else dataset
+            dataset = sum([read_pkl(cache_path) for cache_path in sorted(IO.read_path(cache_dir))], [])
 
         self.get_fn = get_fn
 
