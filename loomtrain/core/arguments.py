@@ -40,7 +40,7 @@ def args() -> "argparse.Namespace":
             _add_data_config_arguments,
             _add_parallel_config_arguments,
             _add_checkpoint_config_arguments,
-            _add_visulization_config_arguments,
+            _add_visualization_config_arguments,
             _add_base_strategy_arguments,
             _add_deepspeed_strategy_arguments,
             *_EXTRA_ARGUMENTS_
@@ -219,7 +219,7 @@ def _add_checkpoint_config_arguments(parser: "argparse.ArgumentParser"):
     )
 
 
-def _add_visulization_config_arguments(parser: "argparse.ArgumentParser"):
+def _add_visualization_config_arguments(parser: "argparse.ArgumentParser"):
     group = parser.add_argument_group(title = "Visulization Config Arguments")
 
     group.add_argument(
@@ -247,6 +247,10 @@ def _add_visulization_config_arguments(parser: "argparse.ArgumentParser"):
         help = "The wandb run name"
     )
     group.add_argument(
+        "--terminal-logtype", type = str, choices = ["tqdm", "rich"], default = "rich",
+        help = "Whether to enable training progress bar"
+    )
+    group.add_argument(
         "--enable-micro-bar", type = bool, default = False,
         help = "Whether to enable micro batch progress bar"
     )
@@ -262,6 +266,15 @@ def _add_base_strategy_arguments(parser: "argparse.ArgumentParser"):
     group.add_argument(
         "--seed", type = int, default = 42,
         help = "The random seed"
+    )
+
+    group.add_argument(
+        "--lr", type = float, default = 1e-4,
+        help = "The learning rate"
+    )
+    group.add_argument(
+        "--warmup-ratio", type = float, default = 0.03,
+        help = "The warmup ratio"
     )
 
 def _add_deepspeed_strategy_arguments(parser: "argparse.ArgumentParser"):
