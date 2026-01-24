@@ -53,7 +53,7 @@ class Actor(nn.Module):
         self._init_args_ = args
 
     @property
-    def optimizer(self):
+    def optimizer(self) -> "torch.optim.Optimizer":
         return self._optim_objects_.get("optimizer", None)
 
 
@@ -69,7 +69,7 @@ class Actor(nn.Module):
         self._optim_objects_["optimizer"] = optim
 
     @property
-    def scheduler(self):
+    def scheduler(self) -> "torch.optim.lr_scheduler.LRScheduler":
         return self._optim_objects_.get("scheduler", None)
 
     @scheduler.setter
