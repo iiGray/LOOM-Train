@@ -148,7 +148,7 @@ def fit(module: "Module",
             for k, v in state_dict.items():
                 logs_dict[f"val/{k}"] = v
             
-            vismodule._update_(state_dict)
+            vismodule._update_(logs_dict)
 
             datamodule._save_ckpt(checkpoint_config, inplace = False)
             module._save_ckpt(checkpoint_config, inplace = False, update_tag = True)

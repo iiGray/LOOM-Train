@@ -122,6 +122,7 @@ class CheckpointMixin:
         if os.path.exists(latest_path): 
             with open(latest_path, "r") as f:
                 which = f.read().strip()
+            self._global_step = int(which.replace("global_step",""))
             saved_dir = os.path.join(saved_dir, which)
         try:
             load_result = self.load_ckpt(saved_dir, tag) 
