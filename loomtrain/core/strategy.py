@@ -134,7 +134,7 @@ class DataStrategy:
             self.current_epoch = states.current_epoch
             self.consumed_samples = states.consumed_samples
         
-        self.train_data_iter.set_state(consumed_epoch = self.current_epoch, 
+        self.train_data_iter.set_state(current_epoch = self.current_epoch, 
                                        consumed_samples = self.consumed_samples)
         
     def setup_data_iter(self, 
@@ -158,13 +158,13 @@ class OptimConfig:
                     "reduce_lr_on_plateau",
                     "cosine_with_min_lr",
                     "warmup_stable_decay"] = "cosine_with_min_lr"
-    warmup_ratios: "int" = 0.03
+    warmup_ratio: "int" = 0.03
     total_steps = None
     @property
     def num_warmup_steps(self):
         if not hasattr(self, "_num_warmup_steps"):
             assert self.total_steps, "Module should connect DataModule first."
-            self._num_warmup_steps = round(self.total_steps * self.warmup_ratios)
+            self._num_warmup_steps = round(self.total_steps * self.warmup_ratio)
 
         return self._num_warmup_steps
 
