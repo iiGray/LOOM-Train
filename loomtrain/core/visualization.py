@@ -67,7 +67,7 @@ class VisualizationModule(LoomCheckpointMixin):
         self.tensorboard_config = tensorboard_config
         if tensorboard_config:
             IO.mkdir(tensorboard_config.log_dir)
-            log_dir = os.path.join(tensorboard_config.log_dir, tensorboard_config.name)
+            log_dir = os.path.join(tensorboard_config.log_dir, self.sub_dir_to_save())
             self._tensorboard = SummaryWriter(log_dir = log_dir)
     
     @rank0only_decorator
@@ -141,8 +141,8 @@ class VisualizationModule(LoomCheckpointMixin):
         if self.logtype == 'tensorboard':
             self._init_tensorboard(
                 TensorboardConfig(
-                    log_dir = dirname(saved_dir),
-                    name = basename(saved_dir)
+                    log_dir = saved_dir,
+                    name = "tensorboard"
                 )
             )
             self.wandb_config = None
