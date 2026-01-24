@@ -1,11 +1,11 @@
+from tqdm import tqdm
 from loomtrain.core.state import CheckpointConfig
 from loomtrain.core.strategy import TrainStrategy, DataStrategy
 from loomtrain.core.module import Module
 from loomtrain.core.datamodule import DataModule
 from loomtrain.core.visualization import NoneVisualization, VisualizationModule
+from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.arguments import args
-
-from accelerate import accelerator
 
 
 def fit(module: "Module",
@@ -80,6 +80,11 @@ def fit(module: "Module",
     module.train()
     datamodule.train()
 
+    progress_bar = tqdm(range(0, datamodule.total_train_steps), 
+                        desc = f"Training epoch: {datamodule.training_epoch + 1}/{args().num_epochs}", 
+                        initial = datamodule.consumed_steps,
+                        disable = parallel.get_rank() != 0)
+
     while not datamodule.exhausted:
         batches = datamodule._update_()
         logs_dict = dict()
@@ -88,6 +93,9 @@ def fit(module: "Module",
         for k, v in state_dict.items():
             logs_dict[f"train/{k}"] = v
 
+        progress_bar.set_description(f"Training epoch: {datamodule.training_epoch + 1}/{args().num_epochs}")
+        progress_bar.set_postfix(logs_dict)
+        progress_bar.update(1)
         state_dict = module._validate(datamodule)
 
         for k, v in state_dict.items():
@@ -101,4 +109,5 @@ def fit(module: "Module",
 
         module._save_module(checkpoint_config) # save module weights for inference
 
+    progress_bar.close()            
     vismodule.release()

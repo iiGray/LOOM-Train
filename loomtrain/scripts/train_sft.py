@@ -1,4 +1,4 @@
-from loomtrain.core import (
+from loomtrain.tasks import (
     SFTModule,
     SFTDataModule,
 

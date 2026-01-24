@@ -26,7 +26,7 @@ class CheckpointConfig:
 
 
 
-class LoomCheckpointMixin:
+class CheckpointMixin:
     '''
     This class automatically save training status
     '''
