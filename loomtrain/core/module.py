@@ -193,7 +193,8 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
         logs_dict = defaultdict(Accumulator)
         for batch in tqdm(batches, desc = f"Micro Batches of Global Step {self.global_step}",
                           total = self.strategy.data_config.grad_accum,
-                          disable = parallel.get_rank() != 0 and (not args().enable_micro_bar)):
+                          position = 1, 
+                          disable = parallel.get_rank() != 0 or (not args().enable_micro_bar)):
             mirco_logs_dict = self.micro_batch_forward_backward(batch)
             for k, v in mirco_logs_dict.items():
                 if not isinstance(v, Accumulator): v = Accumulator(v, 1 if self.stat_batch_as_unit else len(batch))
