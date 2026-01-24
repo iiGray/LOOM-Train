@@ -23,14 +23,14 @@ class SortPackingStrategy(DataStrategy):
             num_epochs = self.data_config.num_epochs,
             collate_fn = self.datamodule.collate_fn,
             pin_memory = self.data_config.pin_memory,
-            length_key = "input_ids_lens"
         )
+        size_kwargs = dict(size_key = "input_ids_lens")
         if self.data_config.packing_length:
             Sampler = DistributedBucketSampler
             sampler_type = 'batch_sampler'
             dataloader_kwargs.pop('batch_size')
         else:
-            dataloader_kwargs.pop("length_key")
+            size_kwargs.pop("size_key")
 
         
         dataloader_kwargs[sampler_type] = Sampler(
@@ -41,7 +41,8 @@ class SortPackingStrategy(DataStrategy):
             shuffle = self.data_config.shuffle,
             seed = self.seed,
             drop_last = self.data_config.drop_last,
-            drop_exceed = self.data_config.drop_exceed
+            drop_exceed = self.data_config.drop_exceed,
+            ** size_kwargs
         )
 
         return MapDataLoader(
