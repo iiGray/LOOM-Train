@@ -7,7 +7,7 @@ from loomtrain import core as lt
 def train():
     args = lt.args()
 
-    module = SFTModule()
+    module = SFTModule(optim_config = lt.OptimConfig(lr = args.lr, warmup_ratio = args.warmup_ratio))
     
     datamodule = SFTDataModule(
         dataset_dicts = [
