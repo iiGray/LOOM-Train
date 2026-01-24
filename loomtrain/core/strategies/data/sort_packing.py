@@ -9,12 +9,12 @@ from loomtrain.core.data.dataset.base import Dataset
 
 from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.strategy import DataConfig, DataStrategy
-from loomtrain.core.data.dataloader.iter import DataIter
+from loomtrain.core.data.dataloader.iter import MapDataLoader
 
 
 class SortPackingStrategy(DataStrategy):
         
-    def setup_data_iter(self, dataset: "Dataset", batch_size: "int") -> "DataIter":
+    def setup_data_iter(self, dataset: "Dataset", batch_size: "int") -> "MapDataLoader":
 
         Sampler = DistributedSampler
         sampler_type = 'sampler'
@@ -44,7 +44,7 @@ class SortPackingStrategy(DataStrategy):
             drop_exceed = self.data_config.drop_exceed
         )
 
-        return DataIter(
+        return MapDataLoader(
             dataset, 
             ** dataloader_kwargs
         )

@@ -1,13 +1,13 @@
 from loomtrain.core.metas import AttrDict
 
-class DataIterStateDict(AttrDict):
+class DataLoaderStateDict(AttrDict):
     def __init__(self, current_epoch: "int" = 0, consumed_samples: "int" = 0, ** kwargs):
         super().__init__(** kwargs)
 
         self.current_epoch = current_epoch
         self.consumed_samples = consumed_samples
 
-class StatefulDataIterMixin:
+class StatefulDataLoaderMixin:
     @property
     def current_epoch(self):
         '''
@@ -26,19 +26,19 @@ class StatefulDataIterMixin:
         The samples have been trained in the current epoch 
         '''
         if not hasattr(self, "_consumed_samples_"):
-            self._consuemd_samples_ = 0
-        return self._consuemd_samples_
+            self._consumed_samples_ = 0
+        return self._consumed_samples_
 
     @consumed_samples.setter
-    def consumed_samples(self, s: "int"):
-        self._consuemd_samples_ = s
+    def consumed_samples(self, s: "int"): 
+        self._consumed_samples_ = s
 
     def set_state(self, current_epoch: "int" = 0, consumed_samples: "int" = 0):
         self.current_epoch = current_epoch
         self.consumed_samples = consumed_samples
 
-    def get_state(self) -> "DataIterStateDict":
-        return DataIterStateDict(
+    def get_state(self) -> "DataLoaderStateDict":
+        return DataLoaderStateDict(
             current_epoch = self.current_epoch,
             consumed_samples = self.consumed_samples
         )

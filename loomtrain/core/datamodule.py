@@ -10,7 +10,7 @@ from loomtrain.core.data.dataset.base import Dataset, DatasetDict
 if TYPE_CHECKING:
     from loomtrain.core.module import Module
     from loomtrain.core.strategy import DataStrategy
-    from loomtrain.core.data.dataloader.iter import DataIter
+    from loomtrain.core.data.dataloader.iter import MapDataLoader
     from loomtrain.core.utils import *
 
 
@@ -127,10 +127,10 @@ class DataModule(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
         raise NotImplementedError
 
 
-    def setup_train_data_iter(self) -> "DataIter":
+    def setup_train_data_iter(self) -> "MapDataLoader":
         return self.strategy.setup_train_data_iter()
 
-    def setup_val_data_iter(self) -> "DataIter":
+    def setup_val_data_iter(self) -> "MapDataLoader":
         return self.strategy.setup_val_data_iter()
 
 
@@ -151,13 +151,13 @@ class DataModule(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
 
 
     @property
-    def train_data_iter(self) -> "DataIter":
+    def train_data_iter(self) -> "MapDataLoader":
         if not hasattr(self, "_train_data_iter_"):
             self._train_data_iter_ = self.setup_train_data_iter()
         return self._train_data_iter_
 
     @property
-    def val_data_iter(self) -> "DataIter":
+    def val_data_iter(self) -> "MapDataLoader":
         if not hasattr(self, "_val_data_iter_"):
             self._val_data_iter_ = self.setup_val_data_iter()
         return self._val_data_iter_

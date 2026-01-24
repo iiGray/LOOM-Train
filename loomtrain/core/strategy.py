@@ -6,8 +6,8 @@ import torch.utils.data as tud
 import torch.distributed as dist
 from datetime import timedelta
 from loomtrain.dataset.base import CollateDataset
-from loomtrain.core.data.dataloader.base import DataIterStateDict
-from loomtrain.core.data.dataloader.iter import DataIter
+from loomtrain.core.data.dataloader.base import DataLoaderStateDict
+from loomtrain.core.data.dataloader.iter import MapDataLoader
 
 # from loomtrain.core.device.mesh import DeviceMes
 
@@ -98,11 +98,11 @@ class DataStrategy:
         return self._rank
 
     @property
-    def train_data_iter(self) -> "DataIter":
+    def train_data_iter(self) -> "MapDataLoader":
         return self.datamodule.train_data_iter
 
     @property
-    def val_data_iter(self) -> "DataIter":
+    def val_data_iter(self) -> "MapDataLoader":
         return self.datamodule.val_data_iter
 
 
@@ -130,7 +130,7 @@ class DataStrategy:
         self.current_epoch = 0
         self.consumed_samples = 0
         if IO.exists(saved_dir) and IO.exists(path_join(saved_dir, "dataIter_states.json")):
-            states = DataIterStateDict(** read_json(path_join(saved_dir, "dataIter_states.json")))
+            states = DataLoaderStateDict(** read_json(path_join(saved_dir, "dataIter_states.json")))
             self.current_epoch = states.current_epoch
             self.consumed_samples = states.consumed_samples
         
@@ -138,7 +138,7 @@ class DataStrategy:
                                        consumed_samples = self.consumed_samples)
         
     def setup_data_iter(self, 
-                        dataset: "tud.Dataset") -> "DataIter":
+                        dataset: "tud.Dataset") -> "MapDataLoader":
         raise NotImplementedError
 
 
