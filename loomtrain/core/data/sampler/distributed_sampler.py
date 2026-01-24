@@ -165,6 +165,7 @@ class DistributedBucketSampler(StatefulSampler):
         drop_last: bool = False,
         drop_exceed: bool = False,
         consumed_samples = 0,
+        size_key: str = "input_ids_lens",
         **kwargs
     ) -> None:
         if num_replicas is None:
@@ -186,7 +187,7 @@ class DistributedBucketSampler(StatefulSampler):
         self.drop_exceed = drop_exceed
 
         self.bucketized_indices = bucketize(
-            dataset.input_ids_lens, bucket_size,
+            getattr(dataset, size_key), bucket_size,
             drop_exceed = self.drop_exceed,
             shuffle = shuffle,
             seed = self.seed
