@@ -1,4 +1,4 @@
-from typing import Literal, List
+from typing import Literal, List, Any
 from dataclasses import dataclass, field 
 import torch
 import torch.distributed as dist
@@ -318,6 +318,9 @@ def set_world_size(size: int = None):
     global _WORLD_SIZE_
     if size is None: size = dist.get_world_size()
     _WORLD_SIZE_ = size
+
+def barrier(group: "dist.ProcessGroup | None" = dist.GroupMember.WORLD, async_op: "bool" = False, device_ids: "Any | None" = None):
+    dist.barrier(group = group, async_op = async_op, device_ids = device_ids)
 
 def get_process_size():
     '''
