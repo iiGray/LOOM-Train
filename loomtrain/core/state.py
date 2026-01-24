@@ -74,7 +74,7 @@ class CheckpointMixin:
             os.makedirs(save_dir, exist_ok = True)
         dist.barrier()
 
-        if not inplace: # None means no need to save seperately
+        if (not inplace) and update_tag: # None means no need to save seperately
             if dist.get_rank() == 0:
                 MAX_SIZE = max_ckpt_GB * 1024**3
                 subdirs = sorted([k for k in IO.read_path(save_dir) if os.path.isdir(k)],
@@ -94,7 +94,8 @@ class CheckpointMixin:
                     IO.remove(subdirs.pop(0))
 
             dist.barrier()
-
+        if inplace and dist.get_rank() == 0:
+            print(f"{self.__class__.__name__} Checkpoint: Inplace saving to {save_dir}/{tag} ...")
         self.save_ckpt(save_dir, tag = tag)
         
         if (not inplace) and update_tag:
@@ -124,10 +125,11 @@ class CheckpointMixin:
             saved_dir = os.path.join(saved_dir, which)
         try:
             load_result = self.load_ckpt(saved_dir, tag) 
+            if not os.path.exists(os.path.join(saved_dir, tag)) or inplace: return 
             if dist.get_rank() == 0:
                 print(f"Successfully load {self.__class__.__name__} Checkpoint from: {saved_dir}/{tag} !!!")
             return load_result
 
         except Exception as e:
             if dist.get_rank() == 0:
-                print(f"Fail to load {self.__class__.__name__} Checkpoint from: {saved_dir}/{tag}")
+                print(f"Fail to load {self.__class__.__name__} Checkpoint from: {saved_dir}/{tag}:",e)
