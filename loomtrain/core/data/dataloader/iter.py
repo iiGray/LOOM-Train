@@ -1,14 +1,15 @@
 from typing import Iterable, Callable, TYPE_CHECKING
 import torch.utils.data as tud
+from functools import partial
 from loomtrain.core.data.dataset.base import Dataset
-from loomtrain.core.data.dataloader.base import StatefulDataIterMixin
+from loomtrain.core.data.dataloader.base import StatefulDataLoaderMixin
+from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.data.sampler import *
 if TYPE_CHECKING:
     from loomtrain.core.strategy import DataStrategy
 
 
-
-class DataIter(tud.DataLoader, StatefulDataIterMixin):
+class MapDataLoader(tud.DataLoader, StatefulDataLoaderMixin):
     def __init__(self, 
                  dataset: "Dataset",
                  batch_size: "int" = 1,
@@ -28,7 +29,7 @@ class DataIter(tud.DataLoader, StatefulDataIterMixin):
             sampler = sampler,
             batch_sampler = batch_sampler,
             num_workers = num_workers,
-            collate_fn = collate_fn,
+            collate_fn = partial(self.wrapped_collate_fn, collate_fn) if collate_fn is not None else None,
             pin_memory = pin_memory,
             drop_last = drop_last
         )
@@ -51,7 +52,9 @@ class DataIter(tud.DataLoader, StatefulDataIterMixin):
     @property
     def exhausted(self):
         return self._exhausted
-    
+
+    def wrapped_collate_fn(self, collate_fn, item_list):
+        return collate_fn(item_list), len(item_list)
 
     def __next__(self):
         current_batch = self.next_batch
@@ -63,10 +66,15 @@ class DataIter(tud.DataLoader, StatefulDataIterMixin):
         for epoch in range(self.num_epochs):
             self._current_epoch = epoch
             if epoch < self.current_epoch: continue
+
             self.stateful_sampler.set_state(
                 epoch, 0 if epoch > self.current_epoch else self.consumed_samples
             )
-            yield from iter(super().__iter__())
+            self.consumed_samples = 0 if epoch > self.current_epoch else self.consumed_samples
+            for batch, num_samples in iter(super().__iter__()):
+                self.consumed_samples += int(parallel.all_reduce(num_samples, op = "sum")) // parallel.get_dp_count()
+                yield batch
+
 
     @property
     def strategy(self) -> "DataStrategy":
