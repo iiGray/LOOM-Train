@@ -9,8 +9,9 @@ from tqdm import tqdm
 from loomtrain.core.metas import AttrDict, LazyInitializeMeta
 from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.strategy import TrainStrategy, OptimConfig
-from loomtrain.core.state import CheckpointConfig, LoomCheckpointMixin
+from loomtrain.core.state import CheckpointConfig, CheckpointMixin
 from loomtrain.core.modeling.actor import Actor
+from loomtrain.core.arguments import args
 if TYPE_CHECKING:
     from loomtrain.core.datamodule import DataModule
 from loomtrain.core.visualization import Accumulator
@@ -20,7 +21,7 @@ import loomtrain as lt
  
 
 
-class Module(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
+class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
     r"""Base class for all modules to be optimized.
 
     Your models should also subclass this class.
@@ -190,7 +191,9 @@ class Module(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
         '''
 
         logs_dict = defaultdict(Accumulator)
-        for batch in batches:
+        for batch in tqdm(batches, desc = f"Micro Batches of Global Step {self.global_step}",
+                          total = self.strategy.data_config.grad_accum,
+                          disable = parallel.get_rank() != 0 and (not args().enable_micro_bar)):
             mirco_logs_dict = self.micro_batch_forward_backward(batch)
             for k, v in mirco_logs_dict.items():
                 if not isinstance(v, Accumulator): v = Accumulator(v, 1 if self.stat_batch_as_unit else len(batch))

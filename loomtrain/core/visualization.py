@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from loomtrain.core.utils import basename, dirname
-from loomtrain.core.state import LoomCheckpointMixin
+from loomtrain.core.state import CheckpointMixin
 from loomtrain.core.utils import (
     IO, rank0only_decorator
 )
@@ -25,7 +25,7 @@ class TensorboardConfig:
     log_dir: str
     name : str
 
-class NoneVisualization(LoomCheckpointMixin):
+class NoneVisualization(CheckpointMixin):
     def __init__(self, *args, **kwargs):
         super().__init__()
 
@@ -38,7 +38,7 @@ class NoneVisualization(LoomCheckpointMixin):
     @rank0only_decorator
     def release(self, *args, **kwargs): ...
 
-class VisualizationModule(LoomCheckpointMixin):
+class VisualizationModule(CheckpointMixin):
     '''Default using Tensorboard config'''
     def __init__(self,
                  logtype: Literal["tensorboard","wandb"] = "tensorboard",

@@ -2,7 +2,7 @@ import types
 import torch, datasets
 from typing import Literal, Callable, TYPE_CHECKING
 from functools import partial, wraps
-from loomtrain.core.state import LoomCheckpointMixin
+from loomtrain.core.state import CheckpointMixin
 from loomtrain.core.metas import LazyInitializeMeta
 from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.metas import AttrDict
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 
-class DataModule(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
+class DataModule(CheckpointMixin, metaclass = LazyInitializeMeta):
     '''
     Contains: RawDataset and DataIter
 
@@ -68,7 +68,7 @@ class DataModule(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
 
     @property
     def total_train_steps(self):
-        return len(self.train_data_iter)
+        return len(self.train_data_iter) // self.strategy.data_config.grad_accum
 
     @property
     def total_val_steps(self):
@@ -81,6 +81,9 @@ class DataModule(LoomCheckpointMixin, metaclass = LazyInitializeMeta):
     @property
     def training_epoch(self) -> int:
         return self.train_data_iter.current_epoch
+    @property
+    def consumed_steps(self) -> int:
+        return self.train_data_iter.consumed_samples // self.strategy.data_config.global_batch_size
 
     @property
     def training(self):

@@ -246,6 +246,10 @@ def _add_visulization_config_arguments(parser: "argparse.ArgumentParser"):
         "--wandb-name", type = str, default = None,
         help = "The wandb run name"
     )
+    group.add_argument(
+        "--enable-micro-bar", type = bool, default = False,
+        help = "Whether to enable micro batch progress bar"
+    )
 
 
 def _add_base_strategy_arguments(parser: "argparse.ArgumentParser"):
