@@ -13,7 +13,7 @@ class CheckpointConfig:
     do_resume: bool = True
     ckpt_interval: int = 10
     weight_interval: int = 10
-    visulization_interval: int = None
+    visualization_interval: int = 1
     max_ckpts: int = 2
     max_ckpts_GB: int = 1024
 
@@ -21,8 +21,8 @@ class CheckpointConfig:
         if self.load_dir is None:
             self.load_dir = self.save_dir
         
-        if self.visulization_interval is None:
-            self.visulization_interval = min(self.weight_interval, self.ckpt_interval)
+        if self.visualization_interval is None:
+            self.visualization_interval = min(self.weight_interval, self.ckpt_interval)
 
 
 

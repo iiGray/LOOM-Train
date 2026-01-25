@@ -137,7 +137,7 @@ class VisualizationModule(CheckpointMixin):
 
     @rank0only_decorator
     def load_ckpt(self, saved_dir, tag):
-        self.logging_steps = self.checkpoint_config.visulization_interval
+        self.logging_steps = self.checkpoint_config.visualization_interval
         if self.logtype == 'tensorboard':
             self._init_tensorboard(
                 TensorboardConfig(

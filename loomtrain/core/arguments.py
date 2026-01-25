@@ -206,8 +206,8 @@ def _add_checkpoint_config_arguments(parser: "argparse.ArgumentParser"):
         help = "The interval (in steps) to save model weights"
     )
     group.add_argument(
-        "--visulization-interval", type = int, default = None,
-        help = "The interval (in steps) to save visulizations"
+        "--visualization-interval", type = int, default = 1,
+        help = "The interval (in steps) to save visualizations"
     )
     group.add_argument(
         "--max-ckpts", type = int, default = 2,
@@ -224,7 +224,7 @@ def _add_visualization_config_arguments(parser: "argparse.ArgumentParser"):
 
     group.add_argument(
         "--logtype", type = str, choices = ['tensorboard', 'wandb', ''], default = 'tensorboard',
-        help = "The type of visulization tool"
+        help = "The type of visualization tool"
     )
     group.add_argument(
         "--wandb-api", type = str, default = None,
