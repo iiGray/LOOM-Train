@@ -3,6 +3,10 @@ from dataclasses import dataclass, field
 import torch
 import torch.distributed as dist
 
+from flash_attn.utils.distributed import all_gather
+
+flash_attn_all_gather = all_gather
+
 @dataclass
 class ParallelConfig:
     nnodes: int = 1
@@ -258,6 +262,36 @@ def set_pp_size(size: int):
     _PP_WORLD_SIZE_ = size
 
 
+def is_first_cp_rank():
+    return get_cp_rank() == 0
+
+def is_first_dp_rank():
+    return get_dp_rank() == 0
+
+def is_first_sp_rank():
+    return get_sp_rank() == 0
+
+def is_first_tp_rank():
+    return get_tp_rank() == 0
+
+def is_first_pp_rank():
+    return get_pp_rank() == 0
+
+
+def is_last_cp_rank():
+    return get_cp_rank() + 1 == get_cp_size()
+
+def is_last_dp_rank():
+    return get_dp_rank() + 1 == get_dp_size()
+
+def is_last_sp_rank():
+    return get_sp_rank() + 1 == get_sp_size()
+
+def is_last_tp_rank():
+    return get_tp_rank() + 1 == get_tp_size()
+
+def is_last_pp_rank():
+    return get_pp_rank() + 1 == get_pp_size()
 
 def get_cp_count():
     return get_world_size() // get_cp_size()
@@ -450,4 +484,3 @@ def all_reduce(data, op: Literal["mean", "max", "sum"] = "mean", group: dist.Pro
         data = data.cpu()
     
     return data if is_tensor else data.item()
-
