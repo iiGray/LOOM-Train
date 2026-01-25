@@ -148,7 +148,7 @@ class OptimConfig:
     lr   : "float" = 1e-5
     min_lr: "float" = None
     betas: "tuple" = (0.9, 0.95)
-    L2_weight_decay: float = 0.0
+    L2_weight_decay: "float" = 0.0
     lr_type: Literal["linear",
                     "cosine",
                     "cosine_with_restarts",
