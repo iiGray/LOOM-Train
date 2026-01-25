@@ -213,7 +213,7 @@ class DistributedBucketSampler(StatefulSampler):
         self.total_size = self.num_samples * self.num_replicas
         self.shuffle = shuffle
         self.seed = seed
-        self.consumed_indicies = consumed_samples // self.num_replicas
+        self.consumed_indices = consumed_samples // self.num_replicas
 
     def __iter__(self) -> Iterator[_T_co]:
         if self.shuffle:
@@ -240,13 +240,14 @@ class DistributedBucketSampler(StatefulSampler):
         # subsample
         indices = indices[self.rank : self.total_size : self.num_replicas]
         # skip consumed_samples
-        indices = indices[self.consumed_indicies :]
-        assert len(indices) == self.num_samples - self.consumed_indicies
+        indices = indices[self.consumed_indices :]
+        assert len(indices) == self.num_samples - self.consumed_indices, \
+            f"Indices length: {len(indices)}  Num samples: {self.num_samples}  Consumed indices: {self.consumed_indices}"
 
         return (self.bucketized_indices[i] for i in indices)
 
     def __len__(self) -> int:
-        return self.num_samples - self.consumed_indicies
+        return self.num_samples - self.consumed_indices
 
     def set_state(self, current_epoch: int, consumed_samples = 0) -> None:
         r"""
@@ -260,4 +261,4 @@ class DistributedBucketSampler(StatefulSampler):
             epoch (int): Epoch number.
         """
         self.epoch = current_epoch
-        self.consumed_indicies = consumed_samples // self.num_replicas
+        self.consumed_indices = consumed_samples // self.num_replicas
