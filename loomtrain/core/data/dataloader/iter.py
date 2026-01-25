@@ -9,6 +9,21 @@ if TYPE_CHECKING:
     from loomtrain.core.strategy import DataStrategy
 
 
+class MicroBatch:
+    def __init__(self, batch: "object", num_samples: "int"):
+        self._batch_obj_ = batch
+        self._num_samples_ = num_samples
+    
+    @property
+    def value(self): return self._batch_obj_
+    @value.setter
+    def value(self, value):
+        self._batch_obj_ = value
+    @property
+    def num_samples(self):return self._num_samples_
+    
+    def __repr__(self): return f"<InfoBatch({self._batch_obj_}, {self.num_samples})>"
+
 class MapDataLoader(tud.DataLoader, StatefulDataLoaderMixin):
     def __init__(self, 
                  dataset: "Dataset",
@@ -73,7 +88,7 @@ class MapDataLoader(tud.DataLoader, StatefulDataLoaderMixin):
             self.consumed_samples = 0 if epoch > self.current_epoch else self.consumed_samples
             for batch, num_samples in iter(super().__iter__()):
                 self.consumed_samples += int(parallel.all_reduce(num_samples, op = "sum")) // parallel.get_dp_count()
-                yield batch
+                yield MicroBatch(batch = batch, num_samples = num_samples)
 
 
     @property

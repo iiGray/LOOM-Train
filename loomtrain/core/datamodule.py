@@ -169,4 +169,6 @@ class DataModule(CheckpointMixin, metaclass = LazyInitializeMeta):
         times = self.strategy.data_config.grad_accum
         while times and (not self.exhausted):
             times -= 1
-            yield self.to_current_device(next(self.train_data_iter))
+            mirco_batch = next(self.train_data_iter)
+            mirco_batch.value = self.to_current_device(mirco_batch.value)
+            yield mirco_batch
