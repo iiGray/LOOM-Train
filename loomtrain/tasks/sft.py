@@ -15,7 +15,7 @@ class SFTModule(lt.Module):
         self.actor = lt.modeling.init_actor(model_path = model_path,
                                             model_type = model_type,
                                             collate_type = collate_type)
-        self.loss_fn = lt.modeling.init_loss_fn(loss_type = "sft")
+        self.loss_fn = lt.modeling.init_loss_fn(loss_type = "ce")
 
         self.toknizer = lt.data.init_tokenizer(tokenizer_path if tokenizer_path else model_path)
 
@@ -139,7 +139,7 @@ class SFTDataModule(lt.DataModule):
             text += " " + self.tokenizer.eos_token
         
         input_token = self.tokenizer(
-            text, max_length = self.max_length,
+            text, max_length = dataset.max_length,
             padding = False,
             truncation = True,
             return_tensors = "pt",

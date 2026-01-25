@@ -9,13 +9,13 @@ from transformers import PreTrainedModel
 from loomtrain.core.parallel import parallel_state as parallel
 
 
-def get_loss_cls(loss_type: Literal["sft", "simpo"] = "sft"):
-    if loss_type == "sft":
+def get_loss_cls(loss_type: Literal["ce", "simpo"] = "ce"):
+    if loss_type == "ce":
         return GPTCELoss
     elif loss_type == "simpo":
         return SimPOLoss
 
-def init_loss_fn(loss_type: Literal["sft", "simpo"] = "sft", *loss_args, **loss_kwargs):
+def init_loss_fn(loss_type: Literal["ce", "simpo"] = "ce", *loss_args, **loss_kwargs):
     return get_loss_cls(loss_type)(*loss_args, **loss_kwargs)
 
 
