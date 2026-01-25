@@ -221,7 +221,7 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
         
         step_bar = tqdm(
                 range(len(val_data_iter)),
-                desc = f"Eval stage of steps {self.global_step}",
+                desc = f"Eval Stage of Global Step {self.global_step}",
                 disable = parallel.get_rank() != 0
             )
         for batch in val_data_iter:
