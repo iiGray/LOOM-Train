@@ -25,7 +25,7 @@ def train():
     )
 
 
-def add_sft_args(parser: "lt.ArgumentParser"):
+def add_pretrain_args(parser: "lt.ArgumentParser"):
     group = parser.add_argument_group("SFT Arguments")
     group.add_argument(
         "--model-path", type = str, required = True
@@ -44,5 +44,5 @@ def add_sft_args(parser: "lt.ArgumentParser"):
     )
 
 if __name__ == "__main__":
-    lt.add_extra_arguments_by(add_sft_args)
+    lt.add_extra_arguments_by(add_pretrain_args)
     train()
