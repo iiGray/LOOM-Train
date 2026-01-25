@@ -1,7 +1,9 @@
+import datetime
 from tqdm import tqdm
 from rich.live import Live
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
+from rich.text import Text
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 from rich.console import Group
 from loomtrain.core.state import CheckpointConfig
 from loomtrain.core.strategy import TrainStrategy, DataStrategy
@@ -19,6 +21,28 @@ def _generate_table(log_dicts):
         table.add_row(f"{k}:", str(v))
     return table
 
+COMPLETE_COLOR = "bright_cyan"
+REMAINING_COLOR = "yellow"
+
+class ColoredElapsedColumn(TimeElapsedColumn):
+    def render(self, task) -> Text:
+        elapsed_text = super().render(task)
+        elapsed_text.style = COMPLETE_COLOR
+        return elapsed_text
+
+class ColoredRemainingColumn(TimeRemainingColumn):
+    def render(self, task) -> Text:
+        if task.completed == 0 or task.total is None:
+            return Text("-:--:--", style = REMAINING_COLOR)
+        rich_text = super().render(task)
+        if  "-" not in str(rich_text):
+            rich_text.style = REMAINING_COLOR
+            return rich_text
+        
+        remaining_steps = task.total - task.completed
+        seconds_remaining = (task.elapsed / task.completed) * remaining_steps
+        eta_string = str(datetime.timedelta(seconds=int(seconds_remaining)))
+        return Text(eta_string, style = REMAINING_COLOR)
 
 def fit(module: "Module",
         datamodule: "DataModule",
@@ -48,7 +72,7 @@ def fit(module: "Module",
             save_dir = args().save_dir,
             ckpt_interval = args().ckpt_interval,
             weight_interval = args().weight_interval,
-            visulization_interval = args().visulization_interval,
+            visualization_interval = args().visualization_interval,
             max_ckpts = args().max_ckpts,
             max_ckpts_GB = args().max_ckpts_GB
         )
@@ -102,15 +126,18 @@ def fit(module: "Module",
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             BarColumn(
-                style = "yellow",
-                complete_style = "cyan",
+                style = REMAINING_COLOR,
+                complete_style = COMPLETE_COLOR,
                 finished_style = "green"
             ),
-            TextColumn("{task.completed:.0f}/{task.total:.0f}"),
+            TextColumn("{task.completed:.0f}/{task.total:.0f}"),        
+            "|",
+            ColoredElapsedColumn(),
+            ColoredRemainingColumn(),
             disable = parallel.get_rank() != 0
         )
         training_task = progress.add_task("Total Training Steps:", 
-                                          start = True,
+                                          start = False,
                                           completed = datamodule.consumed_steps,
                                           total = datamodule.total_train_steps)
         live = Live(Group(progress), refresh_per_second=10)
@@ -119,6 +146,8 @@ def fit(module: "Module",
     ################################
     ############ Training Loop ############
     try:
+        if parallel.get_rank() == 0 and args().terminal_logtype == "rich":
+            progress.start_task(training_task)
         while not datamodule.exhausted:
             batches = datamodule._update_()
             logs_dict = dict()
@@ -149,6 +178,9 @@ def fit(module: "Module",
                 logs_dict[f"val/{k}"] = v
             
             vismodule._update_(logs_dict)
+
+            if parallel.get_rank() == 0:
+                print(f"LogsDict: {logs_dict}")
 
             datamodule._save_ckpt(checkpoint_config, inplace = False)
             module._save_ckpt(checkpoint_config, inplace = False, update_tag = True)
