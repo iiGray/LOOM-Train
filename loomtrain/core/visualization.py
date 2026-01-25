@@ -5,6 +5,7 @@ from collections import UserDict
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from loomtrain.core.state import CheckpointMixin
+from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.utils import (
     IO, rank0only_decorator, dirname, path_join, save_pkl, read_pkl
 )
@@ -183,14 +184,24 @@ class VisualizationModule(CheckpointMixin):
 
 class Accum:
     '''
-    total: Only work when dtype == 'mean'. When dtype == 'sum', total is useless, keep it '0' is OK.
-    is_global: whether refresh during different batch
+    Args:
+        total: 
+            Only work when dtype == 'mean'. 
+            When dtype == 'sum', total is useless, keep it '0' is OK.
+            when total is None, total will be automatically set as the total samples in a batch
+        is_global: whether refresh during different batch
     '''
-    def __init__(self, value: "Any" = 0, total: "int" = 0, dtype: "Literal['sum', 'mean']" = "mean", is_global: "bool" = False):
+    def __init__(self, value: "Any" = 0, total: "int" = None, dtype: "Literal['sum', 'mean']" = "mean", all_reduce: "None | Literal['sum', 'mean']" = None, is_global: "bool" = False):
+        if all_reduce:
+            value = parallel.all_reduce(value, op = all_reduce)
         self.value = value
         self.total = total
         self.dtype = dtype
         self.is_global = is_global
+
+
+        self._user_set_total = total != None
+
     def __iadd__(self, other: "Accum"):
         assert self.dtype == other.dtype, \
             f"Only Accums with the same dtype can be summed up, but you provide :{self} and {other}"
@@ -212,6 +223,7 @@ class Accum:
         return self
     
     def set_total(self, total: "int"):
+        if self._user_set_total: return self
         self.total = total
         return self
     
