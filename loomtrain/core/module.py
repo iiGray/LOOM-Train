@@ -243,6 +243,7 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
             datamodule.eval()
             with torch.no_grad():
                 logs_dict = self.validate(datamodule.val_data_iter)
+            datamodule.reset_val_data_iter()
             self.train()
             datamodule.train()
         return logs_dict

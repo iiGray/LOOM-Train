@@ -122,13 +122,11 @@ class DataModule(CheckpointMixin, metaclass = LazyInitializeMeta):
         This function is designed for bucketizing, only for LLM training.
         '''
 
-
     def get_train_dataset(self) -> "Dataset":
         raise NotImplementedError
     
     def get_val_dataset(self) -> "Dataset":
         raise NotImplementedError
-
 
     def setup_train_data_iter(self) -> "MapDataLoader":
         return self.strategy.setup_train_data_iter()
@@ -136,13 +134,11 @@ class DataModule(CheckpointMixin, metaclass = LazyInitializeMeta):
     def setup_val_data_iter(self) -> "MapDataLoader":
         return self.strategy.setup_val_data_iter()
 
-
     def collate_fn(self, item_list):
         return self.strategy.collate_fn(item_list)
 
     def _connect_module(self, module: "Module"):
         self.module = module
-
 
     def sub_dir_to_save(self): return "dataModule_ckpt"
 
@@ -151,7 +147,6 @@ class DataModule(CheckpointMixin, metaclass = LazyInitializeMeta):
 
     def save_ckpt(self, save_dir, tag):
         return self.strategy.save_ckpt(save_dir, tag)
-
 
     @property
     def train_data_iter(self) -> "MapDataLoader":
@@ -164,6 +159,10 @@ class DataModule(CheckpointMixin, metaclass = LazyInitializeMeta):
         if not hasattr(self, "_val_data_iter_"):
             self._val_data_iter_ = self.setup_val_data_iter()
         return self._val_data_iter_
+    
+    def reset_val_data_iter(self):
+        if hasattr(self, "_val_data_iter_"):
+            del self._val_data_iter_
 
     def _update(self):
         # TODO: if pipeline-parallelism, global batch will not be generated simultaneously.
