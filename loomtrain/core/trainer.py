@@ -179,9 +179,6 @@ def fit(module: "Module",
             
             vismodule._update_(logs_dict)
 
-            if parallel.get_rank() == 0:
-                print(f"LogsDict: {logs_dict}")
-
             datamodule._save_ckpt(checkpoint_config, inplace = False)
             module._save_ckpt(checkpoint_config, inplace = False, update_tag = True)
             vismodule._save_ckpt(checkpoint_config, inplace = True)

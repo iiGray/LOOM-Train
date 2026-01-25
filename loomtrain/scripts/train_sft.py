@@ -11,9 +11,12 @@ def train():
     
     datamodule = SFTDataModule(
         dataset_dicts = [
-            lt.data.DatasetDict(pth, train_count = tc, val_count = vc) \
+            lt.data.DatasetDict(pth, train_count = tc, val_count = vc, 
+                                max_length = args.max_data_length,
+                                prompt_key = args.prompt_key,
+                                response_key = args.response_key) \
                 for pth, tc, vc in zip(args.dataset_paths, args.train_samples, args.val_samples)
-        ], max_length = args.max_data_length)
+        ])
         
     lt.fit(
         module = module,
