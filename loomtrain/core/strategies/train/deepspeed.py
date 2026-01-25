@@ -105,10 +105,11 @@ class DeepspeedStrategy(TrainStrategy):
 
     def backward(self, loss: "torch.Tensor", actor_of_the_loss: "Actor" = None):
         actor_of_the_loss.model.backward(loss)
-    
-    def step(self):
-        for actor in self.opt_groups.values():
-            actor.model.step()
+
+    def step(self, micro_steps: "int" = 1):
+        for _ in range(micro_steps):
+            for actor in self.opt_groups.values():
+                    actor.model.step()
 
     def zero_grad(self):
         for actor in self.opt_groups.values():

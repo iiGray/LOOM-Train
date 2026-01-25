@@ -1,6 +1,6 @@
 import os
 import torch
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 from torch import nn
 import torch.distributed as dist
 from transformers import PreTrainedTokenizer
@@ -19,6 +19,29 @@ from loomtrain.utils.lora import LoRAConfig, get_peft_model
 from dataclasses import dataclass
 import loomtrain as lt
  
+
+class CountableIterator:
+    def __init__(self, iterable: "Iterable"):
+        self._iterator = iter(iterable)
+        self._count = 0
+        self._finished = False 
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._finished:
+            raise StopIteration
+        try:
+            item = next(self._iterator)
+            self._count += 1
+            return item
+        except StopIteration:
+            self._finished = True
+            raise 
+    @property
+    def length(self):
+        assert self._finished, "Iteration is not complete; the property `length` is unavailable."
+        return self._count
 
 
 class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
@@ -140,7 +163,7 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
             print(f"Model Weight: {save_dir} is ready !!!")
     
 
-    def save_module(self, save_dir: str, tag: str):
+    def save_module(self, save_dir: "str", tag: "str"):
         '''
         save_dir is already be set different
         This Function can either be implemented manually, or be replaced by train_strategy'''
@@ -150,25 +173,31 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
     def config_module(self):
         '''
         Config/Setup model, optimizer, scheduler by different TrainStrategy
-        This Function can either be implemented manually, or be replaced by train_strategy'''
+        This Function can either be implemented manually, or be replaced by train_strategy
+        '''
         return self.strategy.config_module()
     
-    def backward(self, loss: torch.Tensor, actor_of_the_loss: Actor = None):
+    def backward(self, loss: "torch.Tensor", actor_of_the_loss: "Actor" = None):
         '''
         This Function should implements the backward process.
-        It can either be implemented manually, or be replaced by train_strategy'''
+        It can either be implemented manually, or be replaced by train_strategy
+        '''
         return self.strategy.backward(loss, actor_of_the_loss)
 
-    def step(self):
+    def step(self, micro_steps: "int" = 1):
         '''
         This Function should implements the optimizer step process.
-        It can either be implemented manually, or be replaced by train_strategy'''
-        return self.strategy.step()
+        It can either be implemented manually, or be replaced by train_strategy
+
+        micro_steps: number of micro-batches consumed from the last step on.
+        '''
+        return self.strategy.step(micro_steps)
 
     def zero_grad(self):        
         '''
         This Function should implements the optimizer/model zero_grad process.
-        It can either be implemented manually, or be replaced by train_strategy'''
+        It can either be implemented manually, or be replaced by train_strategy
+        '''
         return self.strategy.zero_grad()
 
     def micro_batch_forward_backward(self, batch) -> "dict[str, Accumulator]":
@@ -183,7 +212,7 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
         '''
         return self.strategy.non_accum_logs_per_step()
 
-    def forward_backward(self, batches) -> "dict[str, Accumulator]":
+    def forward_backward(self, batches: "Iterable") -> "dict[str, Accumulator]":
         '''
         This Function defines a global step forward and backward process, aimed to gain the full grad of this batches. The optimizer step will be executed immediately after this function having been executed.
 
@@ -250,8 +279,9 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
 
     def _update(self, batches):
         '''logic that forward/backward a whole batch then update parameters'''
+        batches = CountableIterator(batches)
         train_logs_dict = self.forward_backward(batches)
-        self.step()
+        self.step(batches.length)
         self.zero_grad()
         train_logs_dict.update(self.non_accum_logs_per_step())
         

@@ -288,7 +288,10 @@ class TrainStrategy:
     def backward(self, loss: "torch.Tensor", actor_of_the_loss: "Actor" = None):
         loss.sum().backward()
 
-    def step(self):
+    def step(self, micro_steps: "int" = 1):
+        '''
+        micro_steps: number of micro-batches consumed from the last step on.
+        '''
         raise NotImplementedError
 
     def zero_grad(self):
