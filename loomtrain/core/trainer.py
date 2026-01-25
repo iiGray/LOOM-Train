@@ -9,7 +9,7 @@ from loomtrain.core.state import CheckpointConfig
 from loomtrain.core.strategy import TrainStrategy, DataStrategy
 from loomtrain.core.module import Module
 from loomtrain.core.datamodule import DataModule
-from loomtrain.core.visualization import NoneVisualization, VisualizationModule
+from loomtrain.core.visualization import NoneVisualization, VisualizationModule, Accum
 from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.arguments import args
 
@@ -105,12 +105,11 @@ def fit(module: "Module",
 
     module.zero_grad()
 
-
+    logs_dict: "dict[str, Accum]" = None
     if checkpoint_config.do_resume:
         module._load_ckpt(checkpoint_config)
         datamodule._load_ckpt(checkpoint_config, inplace = True)
-        vismodule._load_ckpt(checkpoint_config, inplace = True)
-
+        logs_dict = vismodule._load_ckpt(checkpoint_config, inplace = True)
 
     module.train()
     datamodule.train()
@@ -150,38 +149,42 @@ def fit(module: "Module",
             progress.start_task(training_task)
         while not datamodule.exhausted:
             batches = datamodule._update_()
-            logs_dict = dict()
+            logs_dict = dict() if logs_dict is None \
+                else {k: v for k, v in logs_dict.items() if isinstance(v, Accum) and v.is_global}
             state_dict = module._update_(batches)
 
             for k, v in state_dict.items():
-                logs_dict[f"train/{k}"] = v
+                if f"train/{k}" in logs_dict: logs_dict[f"train/{k}"] += v
+                else: logs_dict[f"train/{k}"] = v
 
+            state_dict = module._validate(datamodule)
+
+            for k, v in state_dict.items():
+                logs_dict[f"val/{k}"] = v
+
+            calculated_logs_dict = {k: v.get_value() if isinstance(v,Accum) else v for k, v in logs_dict.items()}
             if args().terminal_logtype == "tqdm":
                 progress_bar.set_description(f"Training epoch: {datamodule.training_epoch + 1}/{args().num_epochs}")
-                progress_bar.set_postfix(logs_dict)
+                progress_bar.set_postfix(calculated_logs_dict)
                 progress_bar.update(1)
-            
-            state_dict = module._validate(datamodule)
 
             if args().terminal_logtype == "rich" and parallel.get_rank() == 0:
                 progress.update(training_task, advance = 1)
                 live.update(
                     Group(
                         progress,
-                        _generate_table({"Training Epoch:" : f"{datamodule.training_epoch + 1}/{args().num_epochs}",
-                                         "Consumed Samples:" : str(datamodule.train_data_iter.consumed_samples), 
-                                         ** logs_dict})
+                        _generate_table({"Training Epoch" : f"{datamodule.training_epoch + 1}/{args().num_epochs}",
+                                         "Consumed Samples" : str(datamodule.train_data_iter.consumed_samples), 
+                                         ** calculated_logs_dict})
                     )
                 )
 
-            for k, v in state_dict.items():
-                logs_dict[f"val/{k}"] = v
             
             vismodule._update_(logs_dict)
 
             datamodule._save_ckpt(checkpoint_config, inplace = False)
             module._save_ckpt(checkpoint_config, inplace = False, update_tag = True)
-            vismodule._save_ckpt(checkpoint_config, inplace = True)
+            vismodule._save_ckpt(checkpoint_config, inplace = True, save_interval = checkpoint_config.visualization_interval)
 
             module._save_module(checkpoint_config) # save module weights for inference
     finally:

@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from loomtrain.core.module import Module
     from loomtrain.core.modeling.actor import Actor
     from loomtrain.core.data.sampler import *
+    from loomtrain.core.visualization import LogDict, AccumLogDict, Accum
 
 from dataclasses import dataclass
 from functools import partial
@@ -298,13 +299,13 @@ class TrainStrategy:
         raise NotImplementedError
 
 
-    def micro_batch_forward_backward(self, batch):
+    def micro_batch_forward_backward(self, batch) -> "AccumLogDict[str, Accum]":
         raise NotImplementedError
     
-    def micro_batch_validate_forward(self, batch):
+    def micro_batch_validate_forward(self, batch) -> "AccumLogDict[str, Accum]":
         raise NotImplementedError
 
-    def non_accum_logs_per_step(self):
+    def non_accum_logs_per_step(self) -> "LogDict[str, Accum]":
         return dict()
 
     def init_parallel(self):

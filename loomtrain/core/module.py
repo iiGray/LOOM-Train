@@ -1,6 +1,6 @@
 import os
 import torch
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Iterable, Iterator, TypeVar
 from torch import nn
 import torch.distributed as dist
 from transformers import PreTrainedTokenizer
@@ -14,14 +14,16 @@ from loomtrain.core.modeling.actor import Actor
 from loomtrain.core.arguments import args
 if TYPE_CHECKING:
     from loomtrain.core.datamodule import DataModule
-from loomtrain.core.visualization import Accumulator
+    from loomtrain.core.data.dataloader.iter import MicroBatch
+from loomtrain.core.visualization import LogDict, AccumLogDict, Accum
 from loomtrain.utils.lora import LoRAConfig, get_peft_model
 from dataclasses import dataclass
 import loomtrain as lt
- 
 
-class CountableIterator:
-    def __init__(self, iterable: "Iterable"):
+T = TypeVar("T")
+ 
+class CountableIterator(Iterator[T]):
+    def __init__(self, iterable: "Iterable[T]"):
         self._iterator = iter(iterable)
         self._count = 0
         self._finished = False 
@@ -200,11 +202,11 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
         '''
         return self.strategy.zero_grad()
 
-    def micro_batch_forward_backward(self, batch) -> "dict[str, Accumulator]":
+    def micro_batch_forward_backward(self, batch) -> "AccumLogDict[str, Accum]":
         '''You May implement this function, or implement `forward_backward` directly.'''
         return self.strategy.micro_batch_forward_backward(batch)
 
-    def non_accum_logs_per_step(self) -> "dict[str, Accumulator]":
+    def non_accum_logs_per_step(self) -> "LogDict[str, Accum]":
         '''
         This function returns a dict of variables for being visualized,
           (Only for those remain the same among different micro batches of a same global batch, 
@@ -212,26 +214,27 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
         '''
         return self.strategy.non_accum_logs_per_step()
 
-    def forward_backward(self, batches: "Iterable") -> "dict[str, Accumulator]":
+    def forward_backward(self, batches: "CountableIterator[MicroBatch]") -> "AccumLogDict[str, Accum]":
         '''
         This Function defines a global step forward and backward process, aimed to gain the full grad of this batches. The optimizer step will be executed immediately after this function having been executed.
 
         [Note] batches is a global batch, a list of micro batch
         '''
 
-        logs_dict = defaultdict(Accumulator)
+        logs_dict = defaultdict(Accum)
         for batch in tqdm(batches, desc = f"Micro Batches of Global Step {self.global_step}",
                           total = self.strategy.data_config.grad_accum,
                           position = 1, 
                           disable = parallel.get_rank() != 0 or (not args().enable_micro_bar)):
-            mirco_logs_dict = self.micro_batch_forward_backward(batch)
+            mirco_logs_dict = self.micro_batch_forward_backward(batch.value)
             for k, v in mirco_logs_dict.items():
-                if not isinstance(v, Accumulator): v = Accumulator(v, 1 if self.stat_batch_as_unit else len(batch))
-                logs_dict[k] += v
-        return {k: v.get_value() for k, v in logs_dict.items()}
+                v.set_total(1 if self.stat_batch_as_unit else batch.num_samples)
+                if k not in logs_dict: logs_dict[k] = v
+                else: logs_dict[k] += v
+        return AccumLogDict( ** {k: v for k, v in logs_dict.items()})
 
 
-    def batch_validate_forward(self, batch) -> "dict[str, Accumulator]":
+    def batch_validate_forward(self, batch) -> "AccumLogDict[str, Accum]":
         raise NotImplementedError
     
     def save_ckpt(self, save_dir, tag):
@@ -240,13 +243,11 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
         return self.strategy.load_ckpt(saved_dir, tag)
 
     def sub_dir_to_save(self): return "Module_ckpts"
-
-
-
-    def validate(self, val_data_iter):
+       
+    def validate(self, val_data_iter) -> "AccumLogDict[str, Accum]":
         '''You may implement validating process in this function  and return a result dicts for visualization'''
 
-        logs_dict = defaultdict(Accumulator)
+        logs_dict = defaultdict(Accum)
         
         step_bar = tqdm(
                 range(len(val_data_iter)),
@@ -254,18 +255,20 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
                 disable = parallel.get_rank() != 0
             )
         for batch in val_data_iter:
-            # for batch in batches:
+            num_samples = batch.num_samples  # dataiter will wrap batch into MicroBatch
+            batch = batch.value # dataiter will wrap batch into MicroBatch
             batch = self.datamodule.to_current_device(batch)
             mirco_logs_dict = self.batch_validate_forward(batch)
             for k, v in mirco_logs_dict.items():
-                if not isinstance(v, Accumulator): v = Accumulator(v, 1 if self.stat_batch_as_unit else len(batch))
-                logs_dict[k] += v
+                v.set_total(1 if self.stat_batch_as_unit else num_samples)
+                if k in logs_dict: logs_dict[k] += v
+                else: logs_dict[k] = v
             step_bar.update()
-        logs_dict = {k: v.get_value() for k, v in logs_dict.items()}
-        step_bar.set_postfix(logs_dict)
+        logs_dict = AccumLogDict(** {k: v for k, v in logs_dict.items()})
+        step_bar.set_postfix({k: v.get_value() for k, v in logs_dict.items()})
         return logs_dict
 
-    def _validate(self, datamodule: "DataModule"):
+    def _validate(self, datamodule: "DataModule") -> "AccumLogDict[str, Accum]":
         logs_dict = dict()
         if datamodule.is_validating_step:
             self.eval()
@@ -277,10 +280,11 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
             datamodule.train()
         return logs_dict
 
-    def _update(self, batches):
+    def _update(self, batches: "Iterable[MicroBatch]") -> "dict[str, Accum | object]":
         '''logic that forward/backward a whole batch then update parameters'''
         batches = CountableIterator(batches)
-        train_logs_dict = self.forward_backward(batches)
+        train_logs_dict = dict()
+        train_logs_dict.update(self.forward_backward(batches))
         self.step(batches.length)
         self.zero_grad()
         train_logs_dict.update(self.non_accum_logs_per_step())

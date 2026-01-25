@@ -28,10 +28,12 @@ class SFTModule(lt.Module):
 
         self.backward(gpt_loss, actor_of_the_loss = self.actor)
 
-        return dict(
-            loss = gpt_loss.item(),
-            total_tokens = parallel.all_reduce(sum(seq_lens)) * parallel.get_dp_count() / 10 ** 9,
-            loss_tokens = parallel.all_reduce(loss_mask.int().sum().item()) * parallel.get_dp_count() / 10 ** 9
+        return lt.AccumLogDict(
+            loss = lt.Accum(gpt_loss.item(), dtype = "mean"),
+            total_tokens = lt.Accum(parallel.all_reduce(sum(seq_lens)) * parallel.get_dp_count() / 10 ** 9, 
+                                    dtype = "sum", is_global = True),
+            loss_tokens = lt.Accum(parallel.all_reduce(loss_mask.int().sum().item()) * parallel.get_dp_count() / 10 ** 9, 
+                                   dtype = "sum", is_global = True),
         )
 
     def batch_validate_forward(self, batch):
@@ -41,14 +43,16 @@ class SFTModule(lt.Module):
 
         gpt_loss = self.loss_fn(output.logits, labels)
 
-        return dict(
-            loss = gpt_loss.item(),
-            total_tokens = parallel.all_reduce(sum(seq_lens)) * parallel.get_dp_count() / 10 ** 9,
-            loss_tokens = parallel.all_reduce(loss_masks.int().sum().item()) * parallel.get_dp_count() / 10 ** 9
+        return lt.AccumLogDict(
+            loss = lt.Accum(gpt_loss.item()),
+            total_tokens = lt.Accum(parallel.all_reduce(sum(seq_lens)) * parallel.get_dp_count() / 10 ** 9, 
+                                    dtype = "sum", is_global = True),
+            loss_tokens = lt.Accum(parallel.all_reduce(loss_masks.int().sum().item()) * parallel.get_dp_count() / 10 ** 9, 
+                                   dtype = "sum", is_global = True)
         )
     
     def non_accum_logs_per_step(self):
-        return dict(lr = self.actor.scheduler.get_last_lr()[0])
+        return lt.LogDict(lr = self.actor.scheduler.get_last_lr()[0])
 
 
 class SFTDataModule(lt.DataModule):

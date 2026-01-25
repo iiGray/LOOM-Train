@@ -1,12 +1,12 @@
 import os, wandb
-from typing import Literal
+from typing import Any, Literal
 from dataclasses import dataclass
+from collections import UserDict
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from loomtrain.core.utils import basename, dirname
 from loomtrain.core.state import CheckpointMixin
 from loomtrain.core.utils import (
-    IO, rank0only_decorator
+    IO, rank0only_decorator, dirname, path_join, save_pkl, read_pkl
 )
 
 @dataclass
@@ -119,11 +119,15 @@ class VisualizationModule(CheckpointMixin):
 
 
     @rank0only_decorator
-    def _update(self, logs_dict:dict):
+    def _update(self, logs_dict: "dict[str, Accum | object]"):
+        self.logs_dict = logs_dict
+        logs_dict = {k: v.get_value() if isinstance(v, Accum) else v for k, v in logs_dict.items()}
+
         global_step = self.global_step
         logging_steps = self.logging_steps
         self._update_tensorboard(logs_dict, global_step, logging_steps)
         self._update_wandb(logs_dict, global_step, logging_steps)
+
 
 
     def sub_dir_to_save(self): 
@@ -132,6 +136,8 @@ class VisualizationModule(CheckpointMixin):
     @rank0only_decorator
     def save_ckpt(self, save_dir, tag):
         #TODO: save in save_dir/tensorboard
+        visualized_path = path_join(dirname(save_dir), "visualized_stats.pkl")
+        save_pkl(self.logs_dict, visualized_path)
         return
         return super().save_ckpt(save_dir, tag)
 
@@ -162,6 +168,11 @@ class VisualizationModule(CheckpointMixin):
             
             self.tensorboard_config = None
         self.is_initialized = True
+        
+        visualized_path = os.path.join(saved_dir, "visualized_stats.pkl")
+        if os.path.exists(visualized_path):
+            return read_pkl(visualized_path)
+
 
     @rank0only_decorator
     def release(self):
@@ -170,27 +181,98 @@ class VisualizationModule(CheckpointMixin):
 
 
 
-class Accumulator:
-    def __init__(self, value = 0, total = 0):
+class Accum:
+    '''
+    total: Only work when dtype == 'mean'. When dtype == 'sum', total is useless, keep it '0' is OK.
+    is_global: whether refresh during different batch
+    '''
+    def __init__(self, value: "Any" = 0, total: "int" = 0, dtype: "Literal['sum', 'mean']" = "mean", is_global: "bool" = False):
         self.value = value
         self.total = total
-    def __iadd__(self,other: "Accumulator"):
+        self.dtype = dtype
+        self.is_global = is_global
+    def __iadd__(self, other: "Accum"):
+        assert self.dtype == other.dtype, \
+            f"Only Accums with the same dtype can be summed up, but you provide :{self} and {other}"
         self.value += other.value
         self.total += other.total
         return self
 
-    def __add__(self, other: "Accumulator"):
-        return Accumulator(self.value + other.value,
+    def __add__(self, other: "Accum"):
+        assert self.dtype == other.dtype, \
+            f"Only Accums with the same dtype can be summed up, but you provide :{self} and {other}"
+        return Accum(self.value + other.value,
                            self.total + other.total)
-
+    def __repr__(self):
+        return f"Accum(value = {self.value}, total = {self.total}, dtype = {self.dtype})"
+    
     def reset(self):
         self.value = 0
         self.total = 0
-
+        return self
+    
+    def set_total(self, total: "int"):
+        self.total = total
+        return self
+    
     def get_value(self):
-        if self.total == 0: return None
+        if self.total == 0 and self.dtype == "mean": return None
         value = self.value
         if isinstance(value, torch.Tensor):
             value = value.item()
-        return value/self.total
+        return value / self.total if self.dtype == "mean" else value
     
+class AccumLogDict(UserDict[str, Accum]):
+    """
+    A specialized dictionary that enforces strict type constraints for keys and values.
+
+    This dictionary implementation ensures that all keys are strings and all values
+    are instances of the `Accum` class. It is designed to maintain data integrity
+    for logging or aggregation tasks.
+
+    Constraints:
+        - Keys: Must be of type `str`.
+        - Values: Must be of type `Accum`.
+
+    Raises:
+        TypeError: If a key is not a `str` or a value is not an `Accum` instance
+            during item assignment or update operations.
+
+    Example:
+        >>> log = AccumLogDict(tokens = Accum(0, dtype = "sum"))
+        >>> log['loss'] = Accum(0.5)  # OK
+        >>> log[100] = Accum(0.5)     # Raises TypeError (Key must be str)
+        >>> log['acc'] = 0.95         # Raises TypeError (Value must be Accum)
+    """
+    def __setitem__(self, key, value):
+        if not isinstance(key, str):
+            raise TypeError(f"Key must be type `str`, but you provide: {type(key).__name__}")
+        if not isinstance(value, Accum):
+            raise TypeError(f"Value must be type `Accum`, but you provide: {type(value).__name__}")
+        super().__setitem__(key, value)
+
+
+class LogDict(UserDict[str, Accum]):
+    """
+    A specialized dictionary that enforces strict type constraints for keys and values.
+
+    This dictionary implementation ensures that all keys are strings and all values
+    are instances of the `Accum` class. It is designed to maintain data integrity
+    for logging or aggregation tasks.
+
+    Constraints:
+        - Keys: Must be of type `str`.
+
+    Raises:
+        TypeError: If a key is not a `str`
+            during item assignment or update operations.
+
+    Example:
+        >>> log = LogDict(lr = 5e-6)
+        >>> log['loss'] = Accum(0.5)  # OK
+        >>> log[100] = Accum(0.5)     # Raises TypeError (Key must be str)
+    """
+    def __setitem__(self, key, value):
+        if not isinstance(key, str):
+            raise TypeError(f"Key must be type `str`, but you provide: {type(key).__name__}")
+        super().__setitem__(key, value)
