@@ -7,25 +7,26 @@ import deepspeed
 from flash_attn.ops.triton.cross_entropy import cross_entropy_loss
 from transformers import PreTrainedModel
 from loomtrain.core.parallel import parallel_state as parallel
+from loomtrain.core.arguments import args
 
 
-def get_loss_cls(loss_type: Literal["ce", "simpo"] = "ce"):
+def get_loss_cls(loss_type: "Literal['ce', 'simpo']" = "ce"):
     if loss_type == "ce":
         return GPTCELoss
     elif loss_type == "simpo":
         return SimPOLoss
 
-def init_loss_fn(loss_type: Literal["ce", "simpo"] = "ce", *loss_args, **loss_kwargs):
+def init_loss_fn(loss_type: "Literal['ce', 'simpo']" = "ce", *loss_args, **loss_kwargs):
     return get_loss_cls(loss_type)(*loss_args, **loss_kwargs)
 
 
 class GPTCELoss(nn.Module):
-    def __init__(self, ignore_index:int = -100):
+    def __init__(self, ignore_index: "int" = -100):
         super().__init__()
         self.ignore_index = ignore_index
         self.loss = nn.CrossEntropyLoss(ignore_index = ignore_index)
     
-    def forward(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    def forward(self, logits: "torch.Tensor", labels: "torch.Tensor") -> torch.Tensor:
         '''
         logits: ring local logits (including the last useless logit)
         '''
@@ -61,10 +62,10 @@ class GPTCELoss(nn.Module):
 
 
 
-def logps_from_logits(logits: torch.FloatTensor,
-                      labels: torch.LongTensor,
-                      temperature: float = 1.0,
-                      ignore_index: int = -100):
+def logps_from_logits(logits: "torch.FloatTensor",
+                      labels: "torch.LongTensor",
+                      temperature: "float" = 1.0,
+                      ignore_index: "int" = -100):
     assert logits.ndim == 2 and labels.ndim == 1, \
         f"logits shape: {logits.shape}, labels shape: {labels.shape}"
     if temperature != 1.0:
@@ -84,17 +85,17 @@ def logps_from_logits(logits: torch.FloatTensor,
 
 
 class DPOLoss(nn.Module):
-    def __init__(self, beta: float, label_smoothing: float = 0.0, ipo: bool = False):
+    def __init__(self, beta: "float", label_smoothing: "float" = 0.0, ipo: "bool" = False):
         super().__init__()
         self.beta = beta
         self.label_smoothing = label_smoothing
         self.ipo = ipo
     
     def forward(self,
-                policy_chosen_logps: torch.FloatTensor,
-                policy_rejected_logps: torch.FloatTensor,
-                reference_chosen_logps: torch.FloatTensor,
-                reference_rejected_logps: torch.FloatTensor):
+                policy_chosen_logps: "torch.FloatTensor",
+                policy_rejected_logps: "torch.FloatTensor",
+                reference_chosen_logps: "torch.FloatTensor",
+                reference_rejected_logps: "torch.FloatTensor"):
         policy_delta = policy_chosen_logps - policy_rejected_logps
         reference_delta = reference_chosen_logps - reference_chosen_logps
 
@@ -116,21 +117,25 @@ class DPOLoss(nn.Module):
 
 class SimPOLoss(nn.Module):
     def __init__(self, 
-                 beta: float = 2.0, gamma: float = 0.5, 
-                 label_smoothing: float = 0.0, 
-                 ltype: Literal["sigmoid", "hing"] = "sigmoid"):
+                 beta: "float" = None, gamma: "float" = None, 
+                 label_smoothing: "float" = None, 
+                 ltype: "Literal['sigmoid', 'hing']" = None):
         super().__init__()
+        if beta is None: beta = args().beta
+        if gamma is None: gamma = args().gamma
+        if label_smoothing is None: label_smoothing = args().label_smoothing
+        if ltype is None: ltype = args().simpo_loss_type
         self.beta = beta
         self.gamma = gamma
         self.gamma_beta_ratio = gamma / beta
         self.label_smoothing = label_smoothing        
         self.ltype = ltype
     def forward(self,
-                policy_chosen_logps: torch.FloatTensor,
-                policy_rejected_logps: torch.FloatTensor,
-                beta: float = None, gamma: float = None, 
-                label_smoothing: float = None, 
-                ltype: Literal["sigmoid", "hing"] = None):
+                policy_chosen_logps: "torch.FloatTensor",
+                policy_rejected_logps: "torch.FloatTensor",
+                beta: "float" = None, gamma: "float" = None, 
+                label_smoothing: "float" = None, 
+                ltype: "Literal['sigmoid', 'hing']" = None):
         '''
         policy_rejected_logps may be the mean of multiple rejected_logps 
         '''
