@@ -6,7 +6,7 @@ from loomtrain.core import args
 
 class SFTModule(lt.Module):
     def __init__(self, model_path: str = None, tokenizer_path: str = None, model_type: str = "causal", collate_type = "packing", 
-                 optim_config: "lt.OptimConfig" = lt.OptimConfig()):
+                 optim_config: "lt.OptimConfig | dict[str, lt.OptimConfig]" = lt.OptimConfig()):
         super().__init__(optim_configs = optim_config)
 
         if model_path is None: model_path = args().model_path
@@ -19,7 +19,7 @@ class SFTModule(lt.Module):
 
         self.toknizer = lt.data.init_tokenizer(tokenizer_path if tokenizer_path else model_path)
 
-    def micro_batch_forward_backward(self, batch) -> "dict[str, object]":
+    def micro_batch_forward_backward(self, batch) -> "lt.AccumLogDict[str, lt.Accum]":
         inputs, attention_mask, loss_mask, seq_lens = batch
         output = self.actor(sequences = inputs, attention_mask = attention_mask, seq_lens = seq_lens)
         labels = torch.where(attention_mask.bool() & loss_mask.bool(), inputs, self.loss_fn.ignore_index)
@@ -36,7 +36,7 @@ class SFTModule(lt.Module):
                                    dtype = "sum", is_global = True),
         )
 
-    def batch_validate_forward(self, batch):
+    def batch_validate_forward(self, batch) -> "lt.AccumLogDict[str, lt.Accum]":
         inputs, attention_masks, loss_masks, seq_lens = batch
         output = self.actor(sequences = inputs, attention_mask = attention_masks,seq_lens = seq_lens)
         labels = torch.where(attention_masks.bool() & loss_masks.bool(), inputs, self.loss_fn.ignore_index)
@@ -51,7 +51,7 @@ class SFTModule(lt.Module):
                                    dtype = "sum", is_global = True)
         )
     
-    def non_accum_logs_per_step(self):
+    def non_accum_logs_per_step(self) -> "lt.LogDict[str, object]":
         return lt.LogDict(lr = self.actor.scheduler.get_last_lr()[0])
 
 
