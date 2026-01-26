@@ -148,8 +148,8 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
         # self.zero_grad()
 
 
-    def _save_module(self, checkpoint_config: "CheckpointConfig"):
-        if self.global_step % checkpoint_config.weight_interval: return
+    def _save_module(self, checkpoint_config: "CheckpointConfig", finished: "bool" = False):
+        if (self.global_step % checkpoint_config.weight_interval) and (not finished): return
 
         save_dir = os.path.join(checkpoint_config.save_dir, f"global_step{self.global_step}")
         if dist.get_rank() == 0:

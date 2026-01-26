@@ -77,9 +77,9 @@ class CheckpointMixin:
             if ret: return ret
             
 
-    def _save_ckpt(self, checkpoint_config: "CheckpointConfig", inplace: "bool" = False, save_interval: "int" = None, update_tag: "bool" = False):
+    def _save_ckpt(self, checkpoint_config: "CheckpointConfig", inplace: "bool" = False, save_interval: "int" = None, update_tag: "bool" = False, finished: "bool" = False):
         if save_interval is None: save_interval = self._get_saving_interval(checkpoint_config)
-        if self.global_step % save_interval: return
+        if (self.global_step % save_interval) and (not finished): return
         which = f"global_step{self.global_step}"
         tag = self.sub_dir_to_save()         
         max_ckpts = checkpoint_config.max_ckpts
@@ -96,7 +96,7 @@ class CheckpointMixin:
                 subdirs = sorted([self._get_ckpt_path_from_dir(k) for k in IO.read_path(checkpoint_config.save_dir) if os.path.isdir(k)],
                                 key = lambda x: self._get_mtime_from_ckpt_path(x))
                 subdirs = [k for k in subdirs if k is not None]
-                print("HERE is CPKT:", save_dir, len(subdirs),)
+                
                 while True:
                     total_size = sum(
                         os.path.getsize(os.path.join(dir_path, file_name))

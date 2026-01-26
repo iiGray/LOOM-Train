@@ -182,11 +182,12 @@ def fit(module: "Module",
             
             vismodule._update_(logs_dict)
 
-            datamodule._save_ckpt(checkpoint_config, inplace = False)
-            module._save_ckpt(checkpoint_config, inplace = False, update_tag = True)
-            vismodule._save_ckpt(checkpoint_config, inplace = True, save_interval = checkpoint_config.visualization_interval)
+            finished = datamodule.exhausted
+            datamodule._save_ckpt(checkpoint_config, inplace = False, finished = finished)
+            module._save_ckpt(checkpoint_config, inplace = False, update_tag = True, finished = finished)
+            vismodule._save_ckpt(checkpoint_config, inplace = True, save_interval = checkpoint_config.visualization_interval, finished = finished)
 
-            module._save_module(checkpoint_config) # save module weights for inference
+            module._save_module(checkpoint_config, finished = finished) # save module weights for inference
     finally:
         if args().terminal_logtype == "tqdm":
             progress_bar.close()
