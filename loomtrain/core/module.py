@@ -242,7 +242,7 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
     def load_ckpt(self, saved_dir, tag):
         return self.strategy.load_ckpt(saved_dir, tag)
 
-    def sub_dir_to_save(self): return "Module_ckpts"
+    def sub_dir_to_save(self): return "model_ckpts"
        
     def validate(self, val_data_iter) -> "AccumLogDict[str, Accum]":
         '''You may implement validating process in this function  and return a result dicts for visualization'''
