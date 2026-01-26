@@ -206,6 +206,9 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
         '''You May implement this function, or implement `forward_backward` directly.'''
         return self.strategy.micro_batch_forward_backward(batch)
 
+    def on_after_micro_batch_forward_backward(self):
+        return self.strategy.on_after_micro_batch_forward_backward()
+
     def non_accum_logs_per_step(self) -> "LogDict[str, Accum]":
         '''
         This function returns a dict of variables for being visualized,
@@ -227,6 +230,7 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
                           position = 1, 
                           disable = parallel.get_rank() != 0 or (not args().enable_micro_bar)):
             mirco_logs_dict = self.micro_batch_forward_backward(batch.value)
+            self.on_after_micro_batch_forward_backward()
             for k, v in mirco_logs_dict.items():
                 v.set_total(1 if self.stat_batch_as_unit else batch.num_samples)
                 if k not in logs_dict: logs_dict[k] = v
@@ -236,7 +240,7 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
 
     def batch_validate_forward(self, batch) -> "AccumLogDict[str, Accum]":
         raise NotImplementedError
-    
+
     def save_ckpt(self, save_dir, tag):
         return self.strategy.save_ckpt(save_dir, tag)
     def load_ckpt(self, saved_dir, tag):

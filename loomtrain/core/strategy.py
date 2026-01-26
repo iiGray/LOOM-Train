@@ -302,6 +302,9 @@ class TrainStrategy:
     def micro_batch_forward_backward(self, batch) -> "AccumLogDict[str, Accum]":
         raise NotImplementedError
     
+    def on_after_micro_batch_forward_backward(self):
+        return
+
     def micro_batch_validate_forward(self, batch) -> "AccumLogDict[str, Accum]":
         raise NotImplementedError
 
