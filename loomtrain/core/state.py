@@ -94,7 +94,7 @@ class CheckpointMixin:
                     IO.remove(subdirs.pop(0))
 
             dist.barrier()
-        if inplace and dist.get_rank() == 0:
+        if dist.get_rank() == 0 and (not inplace):
             print(f"{self.__class__.__name__} Checkpoint: Inplace saving to {save_dir}/{tag} ...")
         self.save_ckpt(save_dir, tag = tag)
         
@@ -102,7 +102,7 @@ class CheckpointMixin:
             with open(os.path.join(checkpoint_config.save_dir, "latest"), "w") as f:
                 f.write(which)    
 
-        if dist.get_rank() == 0:
+        if (dist.get_rank() == 0) and (not inplace):
             print(f"{self.__class__.__name__} Checkpoint: {save_dir}/{tag} is ready !!!")
 
     
