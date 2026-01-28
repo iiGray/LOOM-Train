@@ -130,13 +130,16 @@ class DataStrategy:
     def load_ckpt(self, saved_dir: str, tag: str = None):
         self.current_epoch = 0
         self.consumed_samples = 0
+        self.consumed_indices = 0
         if IO.exists(saved_dir) and IO.exists(path_join(saved_dir, "dataIter_states.json")):
             states = DataLoaderStateDict(** read_json(path_join(saved_dir, "dataIter_states.json")))
             self.current_epoch = states.current_epoch
             self.consumed_samples = states.consumed_samples
+            self.consumed_indices = states.consumed_indices
         
         self.train_data_iter.set_state(current_epoch = self.current_epoch, 
-                                       consumed_samples = self.consumed_samples)
+                                       consumed_samples = self.consumed_samples,
+                                       consumed_indices = self.consumed_indices)
         
     def setup_data_iter(self, 
                         dataset: "tud.Dataset") -> "MapDataLoader":

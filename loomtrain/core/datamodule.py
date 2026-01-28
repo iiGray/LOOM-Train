@@ -83,7 +83,7 @@ class DataModule(CheckpointMixin, metaclass = LazyInitializeMeta):
         return self.train_data_iter.current_epoch
     @property
     def consumed_steps(self) -> int:
-        return self.train_data_iter.consumed_samples // self.strategy.data_config.global_batch_size
+        return self.train_data_iter.consumed_indices // self.strategy.data_config.global_batch_size
 
     @property
     def training(self):

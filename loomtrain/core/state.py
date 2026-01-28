@@ -96,7 +96,7 @@ class CheckpointMixin:
                 subdirs = sorted([self._get_ckpt_path_from_dir(k) for k in IO.read_path(checkpoint_config.save_dir) if os.path.isdir(k)],
                                 key = lambda x: self._get_mtime_from_ckpt_path(x))
                 subdirs = [k for k in subdirs if k is not None]
-                
+
                 while True:
                     total_size = sum(
                         os.path.getsize(os.path.join(dir_path, file_name))
@@ -108,7 +108,10 @@ class CheckpointMixin:
                     if len(subdirs) < max_ckpts and total_size <= MAX_SIZE:
                         break
 
-                    IO.remove(self._get_ckpt_path_from_dir(subdirs.pop(0)))
+                    removed = subdirs(0)
+                    IO.remove(removed)
+                    if not [k for k in IO.read_path(dirname(removed)) if IO.isdir(k)]:
+                        IO.remove(dirname(dirname(dirname(subdirs))))
 
             dist.barrier()
         if dist.get_rank() == 0 and inplace:
@@ -143,11 +146,11 @@ class CheckpointMixin:
             saved_dir = os.path.join(saved_dir, which)
         try:
             load_result = self.load_ckpt(saved_dir, tag) 
-            if not os.path.exists(os.path.join(saved_dir, tag)) or inplace: return 
+            if not os.path.exists(saved_dir) or inplace: return 
             if dist.get_rank() == 0:
-                print(f"Successfully load {self.__class__.__name__} Checkpoint from: {saved_dir}/{tag} !!!")
+                print(f"Successfully load {self.__class__.__name__} Checkpoint from: {saved_dir}/ !!!")
             return load_result
 
         except Exception as e:
             if dist.get_rank() == 0:
-                print(f"Fail to load {self.__class__.__name__} Checkpoint from: {saved_dir}/{tag}:",e)
+                print(f"Fail to load {self.__class__.__name__} Checkpoint from: {saved_dir}/:",e)

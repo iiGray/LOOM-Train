@@ -70,6 +70,7 @@ def fit(module: "Module",
     if checkpoint_config is None:
         checkpoint_config = CheckpointConfig(
             save_dir = args().save_dir,
+            do_resume = args().do_resume,
             ckpt_interval = args().ckpt_interval,
             weight_interval = args().weight_interval,
             visualization_interval = args().visualization_interval,
@@ -108,7 +109,7 @@ def fit(module: "Module",
     logs_dict: "dict[str, Accum]" = None
     if checkpoint_config.do_resume:
         module._load_ckpt(checkpoint_config)
-        datamodule._load_ckpt(checkpoint_config, inplace = True)
+        datamodule._load_ckpt(checkpoint_config)
         logs_dict = vismodule._load_ckpt(checkpoint_config, inplace = True)
 
     module.train()

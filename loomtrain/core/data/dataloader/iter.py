@@ -78,16 +78,18 @@ class MapDataLoader(tud.DataLoader, StatefulDataLoaderMixin):
         return current_batch
 
     def __iter__(self):
+        batch_indice_size = self.batch_size if self.batch_size else 1
         for epoch in range(self.num_epochs):
             self._current_epoch = epoch
             if epoch < self.current_epoch: continue
 
             self.stateful_sampler.set_state(
-                epoch, 0 if epoch > self.current_epoch else self.consumed_samples
+                epoch, 0 if epoch > self.current_epoch else self.consumed_indices
             )
-            self.consumed_samples = 0 if epoch > self.current_epoch else self.consumed_samples
+            self.consumed_indices = 0 if epoch > self.current_epoch else self.consumed_indices
             for batch, num_samples in iter(super().__iter__()):
                 self.consumed_samples += int(parallel.all_reduce(num_samples, op = "sum")) // parallel.get_dp_count()
+                self.consumed_indices += batch_indice_size
                 yield MicroBatch(batch = batch, num_samples = num_samples)
 
 
