@@ -46,9 +46,9 @@ class SFTModule(lt.Module):
         return lt.AccumLogDict(
             loss = lt.Accum(gpt_loss.item()),
             total_tokens = lt.Accum(parallel.all_reduce(sum(seq_lens)) * parallel.get_dp_count() / 10 ** 9, 
-                                    dtype = "sum", is_global = True),
+                                    dtype = "sum"),
             loss_tokens = lt.Accum(parallel.all_reduce(loss_masks.int().sum().item()) * parallel.get_dp_count() / 10 ** 9, 
-                                   dtype = "sum", is_global = True)
+                                   dtype = "sum")
         )
     
     def non_accum_logs_per_step(self) -> "lt.LogDict[str, object]":
