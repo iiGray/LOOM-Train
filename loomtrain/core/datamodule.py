@@ -179,16 +179,18 @@ class DataModule(CheckpointMixin, metaclass = LazyInitializeMeta):
     def train_data_iter(self) -> "MapDataLoader":
         if not hasattr(self, "_train_data_iter_"):
             self._train_data_iter_ = self.setup_train_data_iter()
-        self._train_data_iter_.set_state(
-            self.current_epoch, self.consumed_samples, self.consumed_indices
-        )
-        return self._train_data_iter_._initialize()
+            self._train_data_iter_.set_state(
+                self.current_epoch, self.consumed_samples, self.consumed_indices
+            )
+            self._train_data_iter_._initialize()
+        return self._train_data_iter_
 
     @property
     def val_data_iter(self) -> "MapDataLoader":
         if not hasattr(self, "_val_data_iter_"):
             self._val_data_iter_ = self.setup_val_data_iter()
-        return self._val_data_iter_._initialize()
+            self._val_data_iter_._initialize()
+        return self._val_data_iter_
     
     def reset_val_data_iter(self):
         if hasattr(self, "_val_data_iter_"):
