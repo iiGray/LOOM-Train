@@ -66,7 +66,9 @@ def bucketize(obj: Iterable, bucket_size: int,
             tmp_bucket += [S(x)]
             tmp_index += [I(x)]
             tmp_size += S(x)
-    
+    if indexs:
+        buckets += [tmp_bucket]
+        indexs += [tmp_index]
     return buckets, indexs
 
 
