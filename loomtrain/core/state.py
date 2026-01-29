@@ -95,7 +95,7 @@ class CheckpointMixin:
                 MAX_SIZE = max_ckpt_GB * 1024**3
                 subdirs = sorted([self._get_ckpt_path_from_dir(k) for k in IO.read_path(checkpoint_config.save_dir) if os.path.isdir(k)],
                                 key = lambda x: self._get_mtime_from_ckpt_path(x))
-                subdirs = [k for k in subdirs if k is not None]
+                subdirs = [k for k in subdirs if k is not None and "global_step" in k]
 
                 while True:
                     total_size = sum(
@@ -108,10 +108,11 @@ class CheckpointMixin:
                     if len(subdirs) < max_ckpts and total_size <= MAX_SIZE:
                         break
 
-                    removed = subdirs(0)
+                    removed = subdirs.pop(0)
+                    removed_dir = dirname(removed)
                     IO.remove(removed)
-                    if not [k for k in IO.read_path(dirname(removed)) if IO.isdir(k)]:
-                        IO.remove(dirname(dirname(dirname(subdirs))))
+                    if not [k for k in IO.read_path(removed_dir) if IO.isdir(k)]:
+                        IO.remove(dirname(removed_dir))
 
             dist.barrier()
         if dist.get_rank() == 0 and inplace:
