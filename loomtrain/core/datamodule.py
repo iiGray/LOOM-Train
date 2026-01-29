@@ -68,7 +68,7 @@ class DataModule(CheckpointMixin, metaclass = LazyInitializeMeta):
 
     @property
     def total_train_steps(self):
-        return len(self.train_data_iter) // self.strategy.data_config.grad_accum
+        return (len(self.train_data_iter) - 1) // self.strategy.data_config.grad_accum + 1
 
     @property
     def total_val_steps(self):
