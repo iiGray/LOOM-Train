@@ -162,7 +162,7 @@ class DeepspeedStrategy(TrainStrategy):
             actor.model.save_checkpoint(save_dir = os.path.join(save_dir, name), 
                                         tag = tag,
                                         client_state = dict(),
-                                        save_latest = True)
+                                        save_latest = False) #manually control saving logic
 
 
     def load_ckpt(self, saved_dir: str, tag: str):
