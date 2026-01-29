@@ -115,7 +115,6 @@ def fit(module: "Module",
     logs_dict: "dict[str, Accum]" = None
     if checkpoint_config.do_resume:
         module._load_ckpt(checkpoint_config)
-        datamodule._load_ckpt(checkpoint_config)
         logs_dict = vismodule._load_ckpt(checkpoint_config, inplace = True)
 
     module.train()
