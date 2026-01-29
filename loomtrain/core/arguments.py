@@ -198,6 +198,10 @@ def _add_checkpoint_config_arguments(parser: "argparse.ArgumentParser"):
         help = "Whether to resume training from the latest checkpoint"
     )
     group.add_argument(
+        "--do-validate", type = bool, default = True,
+        help = "Whether to validate during training"
+    )
+    group.add_argument(
         "--ckpt-interval", type = int, default = 20,
         help = "The interval (in steps) to save checkpoints"
     )
