@@ -57,8 +57,11 @@ class MapDataLoader(tud.DataLoader, StatefulDataLoaderMixin):
         self._exhausted = False
 
         self.data_iter = iter(self)
-        self.next_batch = next(self.data_iter)
-
+        try:
+            self.next_batch = next(self.data_iter)
+        except StopIteration:
+            self._exhausted = True
+            self.next_batch = None
     @property
     def stateful_sampler(self) -> "StatefulSampler":
         return self._stateful_sampler if self._stateful_sampler is not None \
@@ -78,7 +81,7 @@ class MapDataLoader(tud.DataLoader, StatefulDataLoaderMixin):
         return current_batch
 
     def __iter__(self):
-        batch_indice_size = self.batch_size if self.batch_size else 1
+        batch_indice_size = (self.batch_size if self.batch_size else 1) * parallel.get_dp_size()
         for epoch in range(self.num_epochs):
             self._current_epoch = epoch
             if epoch < self.current_epoch: continue
@@ -88,10 +91,9 @@ class MapDataLoader(tud.DataLoader, StatefulDataLoaderMixin):
             )
             self.consumed_indices = 0 if epoch > self.current_epoch else self.consumed_indices
             for batch, num_samples in iter(super().__iter__()):
+                yield MicroBatch(batch = batch, num_samples = num_samples)
                 self.consumed_samples += int(parallel.all_reduce(num_samples, op = "sum")) // parallel.get_dp_count()
                 self.consumed_indices += batch_indice_size
-                yield MicroBatch(batch = batch, num_samples = num_samples)
-
 
     @property
     def strategy(self) -> "DataStrategy":
