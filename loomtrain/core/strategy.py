@@ -167,7 +167,7 @@ class OptimConfig:
     @property
     def num_warmup_steps(self):
         if not hasattr(self, "_num_warmup_steps"):
-            assert self.total_steps, "Module should connect DataModule first."
+            assert self.total_steps is not None, "Module should connect DataModule first."
             self._num_warmup_steps = round(self.total_steps * self.warmup_ratio)
 
         return self._num_warmup_steps
