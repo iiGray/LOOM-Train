@@ -272,9 +272,9 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
         step_bar.set_postfix({k: v.get_value() for k, v in logs_dict.items()})
         return logs_dict
 
-    def _validate(self, datamodule: "DataModule") -> "AccumLogDict[str, Accum]":
+    def _validate(self, datamodule: "DataModule", finished: "bool") -> "AccumLogDict[str, Accum]":
         logs_dict = dict()
-        if datamodule.is_validating_step:
+        if datamodule.is_validating_step or finished:
             self.eval()
             datamodule.eval()
             with torch.no_grad():
