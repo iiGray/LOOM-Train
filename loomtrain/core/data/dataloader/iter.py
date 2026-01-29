@@ -1,6 +1,7 @@
 from typing import Iterable, Callable, TYPE_CHECKING
 import torch.utils.data as tud
 from functools import partial
+from loomtrain.core.metas import LazyInitializeMeta
 from loomtrain.core.data.dataset.base import Dataset
 from loomtrain.core.data.dataloader.base import StatefulDataLoaderMixin
 from loomtrain.core.parallel import parallel_state as parallel
@@ -24,7 +25,7 @@ class MicroBatch:
     
     def __repr__(self): return f"<InfoBatch({self._batch_obj_}, {self.num_samples})>"
 
-class MapDataLoader(tud.DataLoader, StatefulDataLoaderMixin):
+class MapDataLoader(tud.DataLoader, StatefulDataLoaderMixin, metaclass = LazyInitializeMeta):
     def __init__(self, 
                  dataset: "Dataset",
                  batch_size: "int" = 1,
@@ -62,6 +63,12 @@ class MapDataLoader(tud.DataLoader, StatefulDataLoaderMixin):
         except StopIteration:
             self._exhausted = True
             self.next_batch = None
+
+
+    def _initialize(self):
+        '''Lazy initialize, Has been implemented in the meta class. Be initialized in `trainer.fit`'''
+        return self._lazy_initialize_()
+
     @property
     def stateful_sampler(self) -> "StatefulSampler":
         return self._stateful_sampler if self._stateful_sampler is not None \

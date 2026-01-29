@@ -98,6 +98,10 @@ def fit(module: "Module",
 
     if data_strategy is not None:
         datamodule._connect_strategy(data_strategy)
+
+    if checkpoint_config.do_resume:
+        datamodule._load_ckpt(checkpoint_config)
+
     datamodule._connect_module(module)
     if train_strategy is not None:
         module._connect_strategy(train_strategy)

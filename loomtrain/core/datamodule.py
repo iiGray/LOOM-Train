@@ -149,16 +149,46 @@ class DataModule(CheckpointMixin, metaclass = LazyInitializeMeta):
         return self.strategy.save_ckpt(save_dir, tag)
 
     @property
+    def current_epoch(self):
+        if not hasattr(self, "_current_epoch_"):
+            self._current_epoch_ = 0
+        return self._current_epoch_
+    @current_epoch.setter
+    def current_epoch(self, e: "int"):
+        self._current_epoch_  = e
+
+    @property
+    def consumed_samples(self):
+        if not hasattr(self, "_consumed_samples_"):
+            self._consumed_samples_ = 0
+        return self._consumed_samples_
+    @consumed_samples.setter
+    def consumed_samples(self, s: "int"):
+        self._consumed_samples_ = s
+
+    @property
+    def consumed_indices(self):
+        if not hasattr(self, "_consumed_indices_"):
+            self._consumed_indices_ = 0
+        return self._consumed_indices_
+    @consumed_indices.setter
+    def consumed_indices(self, i: "int"):
+        self._consumed_indices_ = i
+
+    @property
     def train_data_iter(self) -> "MapDataLoader":
         if not hasattr(self, "_train_data_iter_"):
             self._train_data_iter_ = self.setup_train_data_iter()
-        return self._train_data_iter_
+        self._train_data_iter_.set_state(
+            self.current_epoch, self.consumed_samples, self.consumed_indices
+        )
+        return self._train_data_iter_._initialize()
 
     @property
     def val_data_iter(self) -> "MapDataLoader":
         if not hasattr(self, "_val_data_iter_"):
             self._val_data_iter_ = self.setup_val_data_iter()
-        return self._val_data_iter_
+        return self._val_data_iter_._initialize()
     
     def reset_val_data_iter(self):
         if hasattr(self, "_val_data_iter_"):
