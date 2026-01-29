@@ -24,6 +24,8 @@ def _generate_table(log_dicts):
 COMPLETE_COLOR = "bright_cyan"
 REMAINING_COLOR = "yellow"
 
+REMAINING_START = 0
+
 class ColoredElapsedColumn(TimeElapsedColumn):
     def render(self, task) -> Text:
         elapsed_text = super().render(task)
@@ -40,7 +42,7 @@ class ColoredRemainingColumn(TimeRemainingColumn):
             return rich_text
         
         remaining_steps = task.total - task.completed
-        seconds_remaining = (task.elapsed / task.completed) * remaining_steps
+        seconds_remaining = (task.elapsed / (task.completed - REMAINING_START)) * remaining_steps
         eta_string = str(datetime.timedelta(seconds=int(seconds_remaining)))
         return Text(eta_string, style = REMAINING_COLOR)
 
@@ -136,6 +138,8 @@ def fit(module: "Module",
             ColoredRemainingColumn(),
             disable = parallel.get_rank() != 0
         )
+        global REMAINING_START
+        REMAINING_START = datamodule.consumed_steps - 1
         training_task = progress.add_task("Total Training Steps:", 
                                           start = False,
                                           completed = datamodule.consumed_steps,
@@ -158,10 +162,12 @@ def fit(module: "Module",
                 if f"train/{k}" in logs_dict: logs_dict[f"train/{k}"] += v
                 else: logs_dict[f"train/{k}"] = v
 
-            state_dict = module._validate(datamodule)
+            finished = datamodule.exhausted
+            if args().do_validate:
+                state_dict = module._validate(datamodule, finished)
 
-            for k, v in state_dict.items():
-                logs_dict[f"val/{k}"] = v
+                for k, v in state_dict.items():
+                    logs_dict[f"val/{k}"] = v
 
             calculated_logs_dict = {k: v.get_value() if isinstance(v,Accum) else v for k, v in logs_dict.items()}
             if args().terminal_logtype == "tqdm":
@@ -183,7 +189,7 @@ def fit(module: "Module",
             
             vismodule._update_(logs_dict)
 
-            finished = datamodule.exhausted
+
             datamodule._save_ckpt(checkpoint_config, inplace = False, finished = finished)
             module._save_ckpt(checkpoint_config, inplace = False, update_tag = True, finished = finished)
             vismodule._save_ckpt(checkpoint_config, inplace = True, save_interval = checkpoint_config.visualization_interval, finished = finished)
