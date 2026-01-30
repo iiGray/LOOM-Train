@@ -23,4 +23,4 @@ torchrun \
     --beta 2.5 \
     --nll-loss-weight 0.05 \
     --enable-micro-bar true \
-    --save-dir ./test
+    --save-dir ./test 

@@ -39,10 +39,10 @@ class SimPOModule(lt.Module):
         return lt.AccumLogDict(
             mean_loss = lt.Accum(parallel.all_reduce(final_loss.item())),
             preference_loss = lt.Accum(parallel.all_reduce(preference_loss.item())),
-            rewards_chosen = lt.Accum(parallel.all_reduce(chosen_reward)),
-            rewards_reject = lt.Accum(parallel.all_reduce(reject_reward)),
+            rewards_chosen = lt.Accum(parallel.all_reduce(chosen_reward.sum().item())),
+            rewards_reject = lt.Accum(parallel.all_reduce(reject_reward.sum().item())),
             preference_acc = lt.Accum(parallel.all_reduce(preference_correct)),
-
+ 
             total_tokens = lt.Accum(parallel.all_reduce(total_token) * parallel.get_dp_count() / 10 ** 9, 
                                     dtype = "sum", is_global = True),
             loss_tokens = lt.Accum(parallel.all_reduce(loss_token) * parallel.get_dp_count() / 10 ** 9, 
