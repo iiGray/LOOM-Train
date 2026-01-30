@@ -200,8 +200,21 @@ class SimPODataModule(lt.DataModule):
         self.dataset_dict = lt.data.BlendedDatasetDict(dataset_dicts)
 
         self.tokenizer = lt.data.init_tokenizer(tokenizer_path)
-    
+
     def filter_data(self, dataset: "lt.data.Dataset", data):
+        if dataset.max_length < 128000:
+            prompt_template = data[dataset.prompt_key]
+            chosen_template = lt.role_template(data[dataset.chosen_key], "assistant")
+            tokenized = self.tokenizer.apply_chat_template(
+                prompt_template + chosen_template, tokenize = True, 
+                max_length = 128000,padding = False,
+                truncation = True
+            )
+            if len(tokenized) > self.max_length: return False
+        reject = data[dataset.rejected_key]
+        return (1 if isinstance(reject, str) else len(reject)) >= dataset.num_rejects
+
+    def map_data(self, dataset: "lt.data.Dataset", data):
         rejects = [data[dataset.rejected_key]] \
             if isinstance(data[dataset.rejected_key], str)\
             else data[dataset.rejected_key]
@@ -306,18 +319,24 @@ class SimPODataModule(lt.DataModule):
             rejects_loss_mask
         )
     
+    def set_dataset_properties(self, dataset: "lt.data.Dataset"):
+        with dataset.disable_get_fn():
+            dataset.set_input_ids_lens(
+                [k['input_ids_len'] for k in dataset]
+            )
+
     def collate_fn(self, item_list):
         '''
         returns:
             packed sequence,  packed_seq_lens
         '''
         # the first element of each is chosen, while others are rejected
-        packed_input_ids_list = [[] for _ in range(self.num_rejects + 1)]
-        packed_attention_masks_list = [[] for _ in range(self.num_rejects + 1)]
-        packed_loss_masks_list = [[] for _ in range(self.num_rejects + 1)]
-        seq_lens_list = [[] for _ in range(self.num_rejects + 1)]
+        packed_input_ids_list = [[] for _ in range(args().num_rejects + 1)]
+        packed_attention_masks_list = [[] for _ in range(args().num_rejects + 1)]
+        packed_loss_masks_list = [[] for _ in range(args().num_rejects + 1)]
+        seq_lens_list = [[] for _ in range(args().num_rejects + 1)]
 
-        merged_seq_lens = [0 for _ in range(self.num_rejects + 2)]
+        merged_seq_lens = [0 for _ in range(args().num_rejects + 2)]
 
         for index, (chosen_id, chosen_attention_mask, chosen_loss_mask,
                     rejects_id, rejects_attention_mask, rejects_loss_mask) in enumerate(item_list):
@@ -327,7 +346,7 @@ class SimPODataModule(lt.DataModule):
             seq_lens_list[0] += [len(chosen_id.flatten())]
 
             for r_index, (reject_id, reject_attention_mask, reject_loss_mask) in enumerate(zip(
-                rejects_id[: self.num_rejects], rejects_attention_mask[: self.num_rejects], rejects_loss_mask[: self.num_rejects]
+                rejects_id[: args().num_rejects], rejects_attention_mask[: args().num_rejects], rejects_loss_mask[: args().num_rejects]
             )):
 
                 packed_input_ids_list[r_index + 1] += [reject_id.flatten()]
@@ -337,7 +356,7 @@ class SimPODataModule(lt.DataModule):
                 seq_lens_list[r_index + 1] += [len(reject_id.flatten())]
         
 
-        for i_index in range(self.num_rejects + 1):
+        for i_index in range(args().num_rejects + 1):
             packed_input_ids_list[i_index] = torch.concat(packed_input_ids_list[i_index]).unsqueeze(0)
             packed_attention_masks_list[i_index] = torch.concat(packed_attention_masks_list[i_index]).unsqueeze(0)
             packed_loss_masks_list[i_index] = torch.concat(packed_loss_masks_list[i_index]).unsqueeze(0)
@@ -348,8 +367,8 @@ class SimPODataModule(lt.DataModule):
         packed_loss_masks = torch.concat(packed_loss_masks_list, dim = -1)
         packed_seq_lens = [sl for seq_lens in seq_lens_list for sl in seq_lens]
 
-        if packed_input_ids.numel() % self.ring_attn_size:
-            padding_len = self.ring_attn_size - (packed_input_ids.numel() % self.ring_attn_size)
+        if packed_input_ids.numel() % parallel.get_cp_size():
+            padding_len = parallel.get_cp_size() - (packed_input_ids.numel() % parallel.get_cp_size())
             packed_input_ids = F.pad(packed_input_ids, (0, padding_len), value = self.tokenizer.pad_token_id)
             packed_attention_masks = F.pad(packed_attention_masks, (0, padding_len), value = 0)
             packed_loss_masks = F.pad(packed_loss_masks, (0, padding_len), value = 0)
@@ -360,3 +379,8 @@ class SimPODataModule(lt.DataModule):
         return (packed_input_ids, packed_attention_masks, packed_loss_masks, 
                 seq_lens_list, packed_seq_lens, merged_seq_lens)
 
+    def get_train_dataset(self):
+        return self.dataset_dict["train"]
+    
+    def get_val_dataset(self):
+        return self.dataset_dict[args().val_split]

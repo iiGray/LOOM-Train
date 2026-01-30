@@ -17,7 +17,7 @@ def train():
                                 chosen_key = args.chosen_key,
                                 rejected_key = args.rejected_key,
                                 num_rejects = args.num_rejects,
-                                sample_rejects = lambda x: x[:args.num_rejects] if isinstance(x, list) else x) \
+                                sample_rejects = lambda x, num_rejects: x[ :num_rejects] if isinstance(x, list) else x) \
                 for pth, tc, vc in zip(args.dataset_paths, args.train_samples, args.val_samples)
         ])
         
