@@ -233,8 +233,12 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
             self.on_after_micro_batch_forward_backward()
             for k, v in mirco_logs_dict.items():
                 v.set_total(1 if self.stat_batch_as_unit else batch.num_samples)
-                if k not in logs_dict: logs_dict[k] = v
-                else: logs_dict[k] += v
+                try:
+                    if k not in logs_dict: logs_dict[k] = v
+                    else: logs_dict[k] += v
+                except Exception as e:
+                    print(f"Exception Occurs During handling logs_dict {k} !")
+                    raise e
         return AccumLogDict( ** {k: v for k, v in logs_dict.items()})
 
 
