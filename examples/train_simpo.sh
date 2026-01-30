@@ -1,18 +1,26 @@
-deepspeed --module scripts.train_simpo \
-    --model-path /data/hf_models/Meta-Llama-3.1-8B-Instruct/ \
-    --dataset-paths /data/jbb/datas/Skywork-Reward-80k-Formatted \
-    --sample-counts 80 \
-    --sample-counts-eval 10 \
+export PYTHONWARNINGS="ignore"
+export NCCL_NVLS_ENABLE=0
+export PYTHONUNBUFFERED=1
+
+torchrun \
+    --nproc_per_node=8 \
+    --nnodes=1 \
+    --master_port=29500 \
+    -m loomtrain.scripts.train_simpo \
+    --model-path /data/preference_dataset \
+    --dataset-paths meta-llama/Meta-Llama-3.1-8B-Instruct/ \
+    --train-samples 800 \
+    --val-samples 10 \
     --max-data-length 128000 \
-    --max-packing-length 0 \
+    --packing-length 128000 \
     --micro-batch-size 1 \
     --global-batch-size 8 \
     --prompt-key chat_template \
     --chosen-key chosen \
     --rejected-key rejects \
     --num-rejects 1 \
-    --simpo-gamma 0.5 \
-    --simpo-beta 2.5 \
-    --simpo-nll-loss-weight 0.05 \
-    --save-name Test-Loom-Llama3.1-simpo \
-    --tensorboard-logdir ./tensorboard
+    --gamma 0.5 \
+    --beta 2.5 \
+    --nll-loss-weight 0.05 \
+    --enable-micro-bar true \
+    --save-dir ./test
