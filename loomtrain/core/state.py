@@ -32,6 +32,8 @@ class CheckpointMixin:
     '''
     def __init__(self):
         self._global_step = 0
+    def __repr__(self):
+        return f"{self.__class__.__module__}.{self.__class__.__qualname__}"
     
     @property
     def global_step(self): return self._global_step

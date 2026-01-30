@@ -15,13 +15,14 @@ def role_template(message: "str | list[dict[str, str]]", role: Literal["system",
         message = [{"role": role, "content": message}]
     return message
 
-def dataset_hashvalue(dataset: "list | datasets.Dataset"):
+def dataset_hashvalue(dataset: "list | datasets.Dataset", datamodule: "DataModule"):
     m = hashlib.md5()
     for i in range(min(1000, len(dataset))):
         m.update(str(dataset[i]).encode('utf-8'))
     m.update(str(args().model_path).encode('utf-8'))
     m.update(str(args().tokenizer_path).encode('utf-8'))
     m.update(str(args().max_data_length).encode('utf-8'))
+    m.update(str(datamodule).encode('utf-8'))
     return m.hexdigest()
 
 
@@ -51,7 +52,7 @@ class Dataset(metaclass = LazyInitializeMeta):
         if map_fn is None: map_fn = self.map_data
         if get_fn is None: get_fn = self.get_data
         cache_dir = args().data_cache_dir
-        hash_dir = dataset_hashvalue(dataset)
+        hash_dir = dataset_hashvalue(dataset, self.datamodule)
         if cache_dir is not None:
             cache_dir = IO.path(cache_dir, hash_dir)
         try:
