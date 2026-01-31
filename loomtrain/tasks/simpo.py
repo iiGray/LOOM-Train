@@ -278,7 +278,7 @@ class SimPOModule(lt.Module):
             loss = lt.Accum(parallel.all_reduce(final_loss.item())),
             acc = lt.Accum(parallel.all_reduce(preference_correct.item())),
             rewards_chosen = lt.Accum(parallel.all_reduce(chosen_reward.sum().item())),
-            rewards_rect = lt.Accum(parallel.all_reduce(reject_reward.sum().item())),
+            rewards_reject = lt.Accum(parallel.all_reduce(reject_reward.sum().item())),
 
             total_tokens = lt.Accum(parallel.all_reduce(total_token, op = "sum") / 10**9, dtype = "sum", is_global = True),
             loss_tokens = lt.Accum(parallel.all_reduce(loss_token, op = "sum") / 10**9, dtype = "sum", is_global = True)
@@ -458,7 +458,7 @@ class SimPOBradleyTerryModule(lt.Module):
             loss = lt.Accum(parallel.all_reduce(final_loss.item())),
             acc = lt.Accum(parallel.all_reduce(preference_correct.item())),
             rewards_chosen = lt.Accum(parallel.all_reduce(chosen_reward.sum().item())),
-            rewards_rect = lt.Accum(parallel.all_reduce(reject_reward.sum().item())),
+            rewards_reject = lt.Accum(parallel.all_reduce(reject_reward.sum().item())),
 
             total_tokens = lt.Accum(parallel.all_reduce(total_token, op = "sum") / 10**9, dtype = "sum", is_global = True),
             loss_tokens = lt.Accum(parallel.all_reduce(loss_token, op = "sum") / 10**9, dtype = "sum", is_global = True)
