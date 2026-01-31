@@ -29,7 +29,7 @@ class SimPODataModule(lt.DataModule):
             chosen_template = lt.role_template(data[dataset.chosen_key], "assistant")
             tokenized = self.tokenizer.apply_chat_template(
                 prompt_template + chosen_template, tokenize = True, 
-                max_length = 128000,padding = False,
+                max_length = 128000, padding = False,
                 truncation = True
             )
             if len(tokenized) > self.max_length: return False
@@ -365,7 +365,7 @@ class SimPOModule(lt.Module):
             full_logps = parallel.flash_attn_all_gather(local_logps, parallel.get_cp_group()).reshape(1,-1)[:, : -1]
         
         logps_list = [full_logps[:, l: r] for l, r in zip(merged_seq_lens[:-1], merged_seq_lens[1:])]
-        loss_masks_list = [masks[:, l: r] for l, r in zip(merged_seq_lens[:-1],merged_seq_lens[1:])]
+        loss_masks_list = [masks[:, l: r] for l, r in zip(merged_seq_lens[:-1], merged_seq_lens[1:])]
         logps_sums_list, logps_means_list = [], []
 
         for logps, mask, seq_lens in zip(logps_list, loss_masks_list, seq_lens_list):
@@ -495,8 +495,7 @@ class SimPOBradleyTerryModule(lt.Module):
         packed_local_scores = model(
             sequences = inputs_ids,
             seq_lens = packed_seq_lens,
-            attention_mask= attention_masks,
-            ring_attn_group = parallel.get_cp_group()
+            attention_mask= attention_masks
         )["logits"]
 
         
