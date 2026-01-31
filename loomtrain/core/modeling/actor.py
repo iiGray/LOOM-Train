@@ -15,8 +15,8 @@ from loomtrain.core.modeling.customs.rm_modeling import train_forwards
 from loomtrain.core.utils.init_hf import init_model, init_tokenizer
 
 
-def get_actor_cls(actor_type: Literal["causal", "classifier"] = "causal", 
-                  collate_type: Literal["packing", "padding"] = "packing") -> "type[Actor]":
+def get_actor_cls(actor_type: "Literal['causal', 'classifier']" = "causal", 
+                  collate_type: "Literal['packing', 'padding']" = "packing") -> "type[Actor]":
     if (actor_type, collate_type) == ("causal", "packing"):
         return PackingGPT
     
@@ -25,8 +25,8 @@ def get_actor_cls(actor_type: Literal["causal", "classifier"] = "causal",
 
 
 def init_actor(model_path, 
-               model_type: Literal['causal', 'classifier'] = "causal", 
-               collate_type: Literal["packing", "padding"] = "packing") -> "Actor":
+               model_type: "Literal['causal', 'classifier']" = "causal", 
+               collate_type: "Literal['packing', 'padding']" = "packing") -> "Actor":
     actor = get_actor_cls(model_type, collate_type)(init_model(model_path, model_type = model_type))
     actor.init_args = AttrDict(model_path = model_path, 
                                model_type = model_type, 
