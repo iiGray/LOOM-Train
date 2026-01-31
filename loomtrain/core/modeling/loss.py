@@ -10,13 +10,15 @@ from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.arguments import args
 
 
-def get_loss_cls(loss_type: "Literal['ce', 'simpo']" = "ce"):
+def get_loss_cls(loss_type: "Literal['ce', 'simpo', 'bt']" = "ce"):
     if loss_type == "ce":
         return GPTCELoss
     elif loss_type == "simpo":
         return SimPOLoss
+    elif loss_type == "bt":
+        return BradleyTerryLoss
 
-def init_loss_fn(loss_type: "Literal['ce', 'simpo']" = "ce", *loss_args, **loss_kwargs):
+def init_loss_fn(loss_type: "Literal['ce', 'simpo', 'bt']" = "ce", *loss_args, **loss_kwargs):
     return get_loss_cls(loss_type)(*loss_args, **loss_kwargs)
 
 
@@ -167,4 +169,24 @@ class SimPOLoss(nn.Module):
         rejected_rewards = beta * policy_rejected_logps.detach()
 
         return loss.mean(), chosen_rewards, rejected_rewards
+
+class BradleyTerryLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+    def forward(self,
+                chosen_scores: torch.FloatTensor,
+                rejected_scores: torch.FloatTensor):
+        '''
+        policy_rejected_logps may be the mean of multiple rejected_logps 
+        '''
+
+        policy_delta = (chosen_scores - rejected_scores).flatten()
+
+        loss = -F.logsigmoid(policy_delta)
+        
+        chosen_rewards = chosen_scores.detach()
+        rejected_rewards = rejected_scores.detach()
+
+        return loss.mean(), chosen_rewards, rejected_rewards
+
 
