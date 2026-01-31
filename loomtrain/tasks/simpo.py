@@ -58,12 +58,12 @@ class SimPOModule(lt.Module):
         (inputs_ids, attention_masks, loss_masks, 
                  seq_lens_list, packed_seq_lens, merged_seq_lens) = batch
         
-        preference_loss, chosen_reward, reject_reward = self._get_loss_and_reward(
-            inputs_ids, attention_masks, seq_lens_list, packed_seq_lens, merged_seq_lens
+        preference_loss, nll_loss, chosen_reward, reject_reward = self._get_loss_and_reward(
+            inputs_ids, attention_masks, loss_masks, seq_lens_list, packed_seq_lens, merged_seq_lens
         )
 
-        final_loss = preference_loss
-        preference_loss = (chosen_reward > reject_reward).float().sum()
+        final_loss = preference_loss + nll_loss
+        preference_correct = (chosen_reward > reject_reward).float().sum()
 
         loss_token = loss_masks.int().sum().item()
         total_token = (sum(sum(k) for k in seq_lens_list) + loss_token * (len(seq_lens_list) - 1))\
@@ -72,7 +72,7 @@ class SimPOModule(lt.Module):
 
         return lt.AccumLogDict(
             loss = lt.Accum(parallel.all_reduce(final_loss.item())),
-            acc = lt.Accum(parallel.all_reduce(preference_loss.item())),
+            acc = lt.Accum(parallel.all_reduce(preference_correct.item())),
             rewards_chosen = lt.Accum(parallel.all_reduce(chosen_reward.sum().item())),
             rewards_rect = lt.Accum(parallel.all_reduce(reject_reward.sum().item())),
 
