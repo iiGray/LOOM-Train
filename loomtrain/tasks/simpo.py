@@ -384,3 +384,158 @@ class SimPOModule(lt.Module):
             logps_means_list += [torch.stack(logps_means)]
         
         return logps_sums_list, logps_means_list
+    
+
+
+class SimPOBradleyTerryModule(lt.Module):
+    def __init__(self, model_path: str = None, tokenizer_path: str = None, collate_type = "packing", 
+                 optim_config: "lt.OptimConfig | dict[str, lt.OptimConfig]" = lt.OptimConfig()):
+        super().__init__(optim_configs = optim_config)
+        if model_path is None: model_path = args().model_path
+        if tokenizer_path is None: tokenizer_path = args().tokenizer_path
+
+        self.actor = lt.modeling.init_actor(model_path = model_path,
+                                            model_type = "classifier",
+                                            collate_type = collate_type)
+        
+        self.loss_fn = lt.modeling.init_loss_fn(loss_type = "bt")
+
+        self.tokenizer = lt.modeling.init_tokenizer(tokenizer_path if tokenizer_path else model_path)
+    
+    def micro_batch_forward_backward(self, batch) -> "lt.AccumLogDict[str, lt.Accum]":
+        (inputs_ids, attention_masks, loss_masks, 
+                 seq_lens_list, packed_seq_lens, merged_seq_lens) = batch
+        
+        preference_loss, chosen_reward, reject_reward = self._get_loss_and_reward(
+            inputs_ids, attention_masks, seq_lens_list, packed_seq_lens, merged_seq_lens
+        )
+
+
+        final_loss = preference_loss
+        preference_correct = (chosen_reward > reject_reward).float().sum()
+
+        self.backward(final_loss, self.actor)
+
+        loss_token = loss_masks.int().sum().item()
+        total_token = (sum(sum(k) for k in seq_lens_list) + loss_token * (len(seq_lens_list) - 1))\
+                      /(len(seq_lens_list))
+
+        return lt.AccumLogDict(
+            mean_loss = lt.Accum(parallel.all_reduce(final_loss.item())),
+            preference_loss = lt.Accum(parallel.all_reduce(preference_loss.item())),
+            rewards_chosen = lt.Accum(parallel.all_reduce(chosen_reward.sum().item())),
+            rewards_reject = lt.Accum(parallel.all_reduce(reject_reward.sum().item())),
+            preference_acc = lt.Accum(parallel.all_reduce(preference_correct)),
+ 
+            total_tokens = lt.Accum(parallel.all_reduce(total_token) * parallel.get_dp_count() / 10 ** 9, 
+                                    dtype = "sum", is_global = True),
+            loss_tokens = lt.Accum(parallel.all_reduce(loss_token) * parallel.get_dp_count() / 10 ** 9, 
+                                   dtype = "sum", is_global = True),
+        )
+
+    def non_accum_logs_per_step(self):
+        return lt.LogDict(
+            lr = self.actor.scheduler.get_last_lr()[0]
+        )
+
+    def batch_validate_forward(self, batch):
+        (inputs_ids, attention_masks, loss_masks, 
+                 seq_lens_list, packed_seq_lens, merged_seq_lens) = batch
+        
+        preference_loss, nll_loss, chosen_reward, reject_reward = self._get_loss_and_reward(
+            inputs_ids, attention_masks, loss_masks, seq_lens_list, packed_seq_lens, merged_seq_lens
+        )
+
+        final_loss = preference_loss + nll_loss
+        preference_correct = (chosen_reward > reject_reward).float().sum()
+
+        loss_token = loss_masks.int().sum().item()
+        total_token = (sum(sum(k) for k in seq_lens_list) + loss_token * (len(seq_lens_list) - 1))\
+                /(len(seq_lens_list))
+
+
+        return lt.AccumLogDict(
+            loss = lt.Accum(parallel.all_reduce(final_loss.item())),
+            acc = lt.Accum(parallel.all_reduce(preference_correct.item())),
+            rewards_chosen = lt.Accum(parallel.all_reduce(chosen_reward.sum().item())),
+            rewards_rect = lt.Accum(parallel.all_reduce(reject_reward.sum().item())),
+
+            total_tokens = lt.Accum(parallel.all_reduce(total_token, op = "sum") / 10**9, dtype = "sum", is_global = True),
+            loss_tokens = lt.Accum(parallel.all_reduce(loss_token, op = "sum") / 10**9, dtype = "sum", is_global = True)
+        )
+
+
+    
+    def _get_loss_and_reward(self, 
+                             inputs_ids: torch.LongTensor, 
+                             attention_masks: torch.LongTensor, 
+                             seq_lens_list: list[list[int]], 
+                             packed_seq_lens: list[int], 
+                             merged_seq_lens: list[int]
+                             ):
+        '''The first element of each input belongs to chosen, others belong to rejected'''
+        
+        chosen_scores, reject_scores = self._get_scores(
+            self.actor, inputs_ids, attention_masks, seq_lens_list, packed_seq_lens, merged_seq_lens
+        )
+        loss, chosen_reward, reject_reward = self.loss_fn(
+            chosen_scores, reject_scores
+        )
+
+        return loss, chosen_reward, reject_reward
+
+    def _get_scores(self, 
+                    model: "lt.modeling.PackingClassifier",
+                    inputs_ids: torch.LongTensor, 
+                    attention_masks: torch.LongTensor,
+                    seq_lens_list: list[list[int]],
+                    packed_seq_lens: list[int], 
+                    merged_seq_lens: list[int]):
+        
+        packed_local_scores = model(
+            sequences = inputs_ids,
+            seq_lens = packed_seq_lens,
+            attention_mask= attention_masks,
+            ring_attn_group = parallel.get_cp_group()
+        )["logits"]
+
+        
+        logps_list = self._get_scores_from_packed_rewards(
+            scores = packed_local_scores,
+            seq_lens_list = seq_lens_list,
+            merged_seq_lens = merged_seq_lens
+        )
+
+        chosen_scores = logps_list[0]
+        reject_scores = torch.stack(logps_list[1:]).mean(dim = 0)
+
+
+
+        return chosen_scores, reject_scores
+
+
+
+    def _get_scores_from_packed_rewards(self,
+                                        scores: torch.FloatTensor,
+                                        seq_lens_list: list[int],
+                                        merged_seq_lens: list[int]):
+        '''logits: [1, local_seq_len, 1], labels: [1, seq_len]'''
+        if parallel.get_cp_group() is None:
+            full_scores = scores.reshape(1, -1)
+        else:
+            full_scores = parallel.flash_attn_all_gather(scores.flatten(), parallel.get_cp_group()).reshape(1,-1)
+        
+        rewards_list = [full_scores[:, l: r] for l, r in zip(merged_seq_lens[:-1], merged_seq_lens[1:])]
+
+        scores_list = []
+        for rewards, seq_lens in zip(rewards_list, seq_lens_list):
+            seq_scores = []
+            start_idx = 0
+            for seq_len in seq_lens:
+                seq_scores += [rewards[0, start_idx + seq_len - 1]]
+                start_idx += seq_len
+    
+            scores_list += [torch.stack(seq_scores)]
+        
+        return scores_list
+
