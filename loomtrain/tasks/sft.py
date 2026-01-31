@@ -4,56 +4,6 @@ from loomtrain.core import parallel
 from torch.nn import functional as F
 from loomtrain.core import args
 
-class SFTModule(lt.Module):
-    def __init__(self, model_path: str = None, tokenizer_path: str = None, model_type: str = "causal", collate_type = "packing", 
-                 optim_config: "lt.OptimConfig | dict[str, lt.OptimConfig]" = lt.OptimConfig()):
-        super().__init__(optim_configs = optim_config)
-
-        if model_path is None: model_path = args().model_path
-        if tokenizer_path is None: tokenizer_path = args().tokenizer_path
-
-        self.actor = lt.modeling.init_actor(model_path = model_path,
-                                            model_type = model_type,
-                                            collate_type = collate_type)
-        self.loss_fn = lt.modeling.init_loss_fn(loss_type = "ce")
-
-        self.toknizer = lt.data.init_tokenizer(tokenizer_path if tokenizer_path else model_path)
-
-    def micro_batch_forward_backward(self, batch) -> "lt.AccumLogDict[str, lt.Accum]":
-        inputs, attention_mask, loss_mask, seq_lens = batch
-        output = self.actor(sequences = inputs, attention_mask = attention_mask, seq_lens = seq_lens)
-        labels = torch.where(attention_mask.bool() & loss_mask.bool(), inputs, self.loss_fn.ignore_index)
-
-        gpt_loss = self.loss_fn(output.logits, labels)
-
-        self.backward(gpt_loss, actor_of_the_loss = self.actor)
-
-        return lt.AccumLogDict(
-            loss = lt.Accum(gpt_loss.item(), dtype = "mean"),
-            total_tokens = lt.Accum(parallel.all_reduce(sum(seq_lens)) * parallel.get_dp_count() / 10 ** 9, 
-                                    dtype = "sum", is_global = True),
-            loss_tokens = lt.Accum(parallel.all_reduce(loss_mask.int().sum().item()) * parallel.get_dp_count() / 10 ** 9, 
-                                   dtype = "sum", is_global = True),
-        )
-
-    def batch_validate_forward(self, batch) -> "lt.AccumLogDict[str, lt.Accum]":
-        inputs, attention_masks, loss_masks, seq_lens = batch
-        output = self.actor(sequences = inputs, attention_mask = attention_masks,seq_lens = seq_lens)
-        labels = torch.where(attention_masks.bool() & loss_masks.bool(), inputs, self.loss_fn.ignore_index)
-
-        gpt_loss = self.loss_fn(output.logits, labels)
-
-        return lt.AccumLogDict(
-            loss = lt.Accum(gpt_loss.item()),
-            total_tokens = lt.Accum(parallel.all_reduce(sum(seq_lens)) * parallel.get_dp_count() / 10 ** 9, 
-                                    dtype = "sum"),
-            loss_tokens = lt.Accum(parallel.all_reduce(loss_masks.int().sum().item()) * parallel.get_dp_count() / 10 ** 9, 
-                                   dtype = "sum")
-        )
-    
-    def non_accum_logs_per_step(self) -> "lt.LogDict[str, object]":
-        return lt.LogDict(lr = self.actor.scheduler.get_last_lr()[0])
-
 
 class SFTDataModule(lt.DataModule):
     def __init__(self, 
@@ -190,3 +140,54 @@ class SFTDataModule(lt.DataModule):
     
     def get_val_dataset(self):
         return self.dataset_dict[args().val_split]
+
+
+class SFTModule(lt.Module):
+    def __init__(self, model_path: str = None, tokenizer_path: str = None, model_type: str = "causal", collate_type = "packing", 
+                 optim_config: "lt.OptimConfig | dict[str, lt.OptimConfig]" = lt.OptimConfig()):
+        super().__init__(optim_configs = optim_config)
+
+        if model_path is None: model_path = args().model_path
+        if tokenizer_path is None: tokenizer_path = args().tokenizer_path
+
+        self.actor = lt.modeling.init_actor(model_path = model_path,
+                                            model_type = model_type,
+                                            collate_type = collate_type)
+        self.loss_fn = lt.modeling.init_loss_fn(loss_type = "ce")
+
+        self.toknizer = lt.data.init_tokenizer(tokenizer_path if tokenizer_path else model_path)
+
+    def micro_batch_forward_backward(self, batch) -> "lt.AccumLogDict[str, lt.Accum]":
+        inputs, attention_mask, loss_mask, seq_lens = batch
+        output = self.actor(sequences = inputs, attention_mask = attention_mask, seq_lens = seq_lens)
+        labels = torch.where(attention_mask.bool() & loss_mask.bool(), inputs, self.loss_fn.ignore_index)
+
+        gpt_loss = self.loss_fn(output.logits, labels)
+
+        self.backward(gpt_loss, actor_of_the_loss = self.actor)
+
+        return lt.AccumLogDict(
+            loss = lt.Accum(gpt_loss.item(), dtype = "mean"),
+            total_tokens = lt.Accum(parallel.all_reduce(sum(seq_lens)) * parallel.get_dp_count() / 10 ** 9, 
+                                    dtype = "sum", is_global = True),
+            loss_tokens = lt.Accum(parallel.all_reduce(loss_mask.int().sum().item()) * parallel.get_dp_count() / 10 ** 9, 
+                                   dtype = "sum", is_global = True),
+        )
+
+    def batch_validate_forward(self, batch) -> "lt.AccumLogDict[str, lt.Accum]":
+        inputs, attention_masks, loss_masks, seq_lens = batch
+        output = self.actor(sequences = inputs, attention_mask = attention_masks,seq_lens = seq_lens)
+        labels = torch.where(attention_masks.bool() & loss_masks.bool(), inputs, self.loss_fn.ignore_index)
+
+        gpt_loss = self.loss_fn(output.logits, labels)
+
+        return lt.AccumLogDict(
+            loss = lt.Accum(gpt_loss.item()),
+            total_tokens = lt.Accum(parallel.all_reduce(sum(seq_lens)) * parallel.get_dp_count() / 10 ** 9, 
+                                    dtype = "sum"),
+            loss_tokens = lt.Accum(parallel.all_reduce(loss_masks.int().sum().item()) * parallel.get_dp_count() / 10 ** 9, 
+                                   dtype = "sum")
+        )
+    
+    def non_accum_logs_per_step(self) -> "lt.LogDict[str, object]":
+        return lt.LogDict(lr = self.actor.scheduler.get_last_lr()[0])
