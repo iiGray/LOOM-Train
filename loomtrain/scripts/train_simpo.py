@@ -25,7 +25,7 @@ def train():
         module = module,
         datamodule = datamodule,
         train_strategy = lt.train_strategy.DeepspeedStrategy(),
-        data_strategy = lt.data_strategy.SortPackingStrategy(),
+        data_strategy = lt.data_strategy.BestFitPackingStrategy(),
     )
 
 

@@ -42,7 +42,7 @@ class PackingSampler(StatefulSampler):
         if micro_batch_size <= 0:
             raise ValueError(f"micro_batch_size must be positive, got {micro_batch_size}")
         
-        self.samples = getattr(dataset, size_key)
+        self.samples = [(i, s) for i, s in enumerate(getattr(dataset, size_key))]
         self.packing_length = packing_length
         self.packing_method = packing_method
         self.sort_by_length = sort_by_length
