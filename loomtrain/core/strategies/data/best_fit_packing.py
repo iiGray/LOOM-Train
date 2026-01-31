@@ -12,7 +12,7 @@ from loomtrain.core.strategy import DataConfig, DataStrategy
 from loomtrain.core.data.dataloader.iter import MapDataLoader
 
 
-class FirstFitPackingStrategy(DataStrategy):
+class BestFitPackingStrategy(DataStrategy):
 
     def setup_data_iter(self, dataset: "Dataset", batch_size: "int") -> "MapDataLoader":
         Sampler = DistributedSampler
@@ -35,7 +35,7 @@ class FirstFitPackingStrategy(DataStrategy):
         dataloader_kwargs[sampler_type] = Sampler(
             dataset,
             packing_length=self.data_config.packing_length,
-            packing_method="first_fit",
+            packing_method="best_fit",
             sort_by_length=False,
             micro_batch_size=self.data_config.micro_batch_size,
             shuffle=self.data_config.shuffle,
