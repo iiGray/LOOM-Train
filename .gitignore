@@ -1,2 +1,12 @@
 **/__pycache__
+Llama3.1-LonMiT-Reward-Vote-fixed
+examples/train_simpo_classifier_long.sh
+examples/train_sft_long.sh
+examples/train_simpo_long.sh
 loomtrain/core/data/sampler/test.py
+loomtrain/trainer/pt.py
+SimPO-Llama3.1-simpo
+Loom_Train.egg-info
+.gitignore
+.cache
+ref
