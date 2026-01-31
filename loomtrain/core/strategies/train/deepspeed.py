@@ -18,7 +18,7 @@ from loomtrain.core.utils import basename, dirname, save_json
 from loomtrain.core.strategy import TrainStrategy
 from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.utils.init_hf import init_model, init_tokenizer
-from loomtrain.core.modeling.actor import Actor, PackingGPT, PackingRM 
+from loomtrain.core.modeling.actor import Actor, PackingGPT, PackingClassifier 
 from loomtrain.utils.common import IO
 from loomtrain.core.arguments import args
 from loomtrain.core.strategy import DataConfig, OptimConfig
@@ -228,7 +228,7 @@ class DeepspeedStrategy(TrainStrategy):
                 if isinstance(model_to_save, PeftModel):
                     if isinstance(actor, PackingGPT):
                         model_to_save = deepcopy(model_to_save)
-                    elif isinstance(actor, PackingRM):
+                    elif isinstance(actor, PackingClassifier):
                         base_model = init_model(model_to_save.base_model.model._load_path,
                                                 model_type = "classifier")
                         cloned = get_peft_model(base_model, self.lora_config)

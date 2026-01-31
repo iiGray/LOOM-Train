@@ -21,11 +21,11 @@ def get_actor_cls(actor_type: Literal["causal", "classifier"] = "causal",
         return PackingGPT
     
     elif (actor_type, collate_type) == ("classifier", "packing"):
-        return PackingRM
+        return PackingClassifier
 
 
 def init_actor(model_path, 
-               model_type: str = "causal", 
+               model_type: Literal['causal', 'classifier'] = "causal", 
                collate_type: Literal["packing", "padding"] = "packing") -> "Actor":
     actor = get_actor_cls(model_type, collate_type)(init_model(model_path, model_type = model_type))
     actor.init_args = AttrDict(model_path = model_path, 
@@ -93,7 +93,7 @@ class PackingGPT(Actor):
 
         return output
 
-class PackingRM(Actor):
+class PackingClassifier(Actor):
     def __init__(self, model: "nn.Module"):
         model._org_forward = model.forward
         

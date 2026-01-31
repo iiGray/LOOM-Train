@@ -9,7 +9,7 @@ from peft import get_peft_model_state_dict, get_peft_model, PeftModel
 from loomtrain.core.strategy import TrainStrategy
 from loomtrain.core.parallel import parallel_state as parallel
 
-from loomtrain.core.modeling.actor import PackingGPT, PackingRM
+from loomtrain.core.modeling.actor import PackingGPT, PackingClassifier
 from loomtrain.utils.init_hf import init_model
 from loomtrain.utils.common import IO
 
@@ -91,7 +91,7 @@ class OrdinaryStrategy(TrainStrategy):
                 if isinstance(model_to_save, PeftModel):
                     if isinstance(actor, PackingGPT):
                         model_to_save = deepcopy(model_to_save)
-                    elif isinstance(actor, PackingRM):
+                    elif isinstance(actor, PackingClassifier):
                         base_model = init_model(model_to_save.base_model.model._load_path,
                                                 model_type = "classifier")
                         cloned = get_peft_model(base_model, self.lora_config)
