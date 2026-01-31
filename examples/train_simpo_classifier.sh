@@ -19,6 +19,7 @@ torchrun \
     --chosen-key chosen \
     --rejected-key rejects \
     --num-rejects 1 \
+    --lr 2e-6 \
     --gamma 0.5 \
     --beta 2.5 \
     --enable-micro-bar true \
