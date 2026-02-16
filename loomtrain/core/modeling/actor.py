@@ -85,9 +85,9 @@ class PackingGPT(Actor):
                 sequences: "torch.LongTensor",
                 seq_lens: "Optional[list[int]]" = None,
                 attention_mask: "Optional[torch.BoolTensor]" = None):
-        inputs = parallel.prepare_cp_input(packed_sequences = sequences, 
+        input_ids, attention_mask, position_ids = parallel.prepare_cp_input(packed_sequences = sequences, 
         seq_lens = seq_lens, attention_mask = attention_mask)
-        output = self.model(*inputs)
+        output = self.model(input_ids = input_ids, attention_mask = attention_mask, position_ids = position_ids)
 
         output["logits"] = output["logits"].to(torch.float32)
 

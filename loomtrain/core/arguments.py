@@ -190,8 +190,12 @@ def _add_lora_config_arguments(parser: "argparse.ArgumentParser"):
     group = parser.add_argument_group(title = "Low Rank Config Arguments")
 
     group.add_argument(
-        "--disable-lora", type = bool, default = True,
-        help = "Set False to enable lora"
+        "--enable-lora", action = "store_true",
+        help = "Set to enable lora"
+    )
+    group.add_argument(
+        "--lora-save-merged", action = 'store_true',
+        help = "Whether to save merged model rather than only peft model"
     )
     group.add_argument(
         "--lora-r", type = int, default = 32,
