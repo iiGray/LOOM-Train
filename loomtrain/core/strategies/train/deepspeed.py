@@ -19,8 +19,9 @@ from loomtrain.core.strategy import TrainStrategy
 from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.utils.init_hf import init_model, init_tokenizer
 from loomtrain.core.modeling.actor import Actor, PackingGPT, PackingClassifier 
-from loomtrain.utils.common import IO
+from loomtrain.core.utils.common import IO
 from loomtrain.core.arguments import args
+from loomtrain.core.utils.lora import LoRAConfig
 from loomtrain.core.strategy import DataConfig, OptimConfig
 
 @dataclass
@@ -42,10 +43,12 @@ class DeepspeedStrategy(TrainStrategy):
     def __init__(self, 
                  parallel_config: "parallel.ParallelConfig" = None,
                  data_config: "DataConfig" = None,
+                 lora_config: "LoRAConfig" = None,
                  config: "DeepspeedConfig" = None,):
         super().__init__(
             parallel_config = parallel_config, 
-            data_config = data_config
+            data_config = data_config,
+            lora_config = lora_config
         )
         if config is None:
             config = DeepspeedConfig(

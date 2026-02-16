@@ -10,8 +10,8 @@ from loomtrain.core.strategy import TrainStrategy
 from loomtrain.core.parallel import parallel_state as parallel
 
 from loomtrain.core.modeling.actor import PackingGPT, PackingClassifier
-from loomtrain.utils.init_hf import init_model
-from loomtrain.utils.common import IO
+from loomtrain.core.utils.init_hf import init_model
+from loomtrain.core.utils.common import IO
 
 
 

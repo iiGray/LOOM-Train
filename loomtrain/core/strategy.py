@@ -204,7 +204,7 @@ class TrainStrategy:
             )
         
         if lora_config is None:
-            lora_config = None if args().diable_lora else LoRAConfig(
+            lora_config = None if args().disable_lora else LoRAConfig(
                 r = args().lora_r,
                 lora_alpha = args().lora_alpha,
                 target_modules = args().lora_target_modules,

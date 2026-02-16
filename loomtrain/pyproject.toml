@@ -50,7 +50,8 @@ dependencies = [
     #llm train
     "deepspeed",
     "wandb",
-    "chardet"
+    "chardet",
+    "sortedcontainers"
 ]
 
 

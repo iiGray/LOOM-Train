@@ -5,8 +5,7 @@ import torch
 import torch.distributed as dist
 import torch.utils.data as tud
 from torch.utils.data.dataset import Dataset
-from loomtrain.utils.common.tools import bucketize
-from loomtrain.dataset.sft import SFTDataset
+from loomtrain.core.utils.common.tools import bucketize
 from loomtrain.core.data.sampler.base import _T_co, StatefulSampler
 
 __all__ = ["DistributedSampler", "DistributedBucketSampler"]
