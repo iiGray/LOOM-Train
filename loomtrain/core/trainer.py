@@ -108,6 +108,7 @@ def fit(module: "Module",
         train_strategy._connect_datamodule(datamodule)
     module._connect_datamodule(datamodule)
     
+    module.prepare_if_lora()
     module.config_module()
 
     module.zero_grad()

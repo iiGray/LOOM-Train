@@ -1,5 +1,5 @@
 import argparse, os
-from loomtrain.utils.common.iotools import dirname
+from loomtrain.core.utils.common.iotools import dirname
 
 def add_saving_arguments(parser: argparse.ArgumentParser):
     group = parser.add_argument_group(title = "Saving Config")

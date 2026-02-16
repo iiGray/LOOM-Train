@@ -1,7 +1,7 @@
 from typing import Type, TypeVar, Callable, List, Tuple, Iterable
 import os, random, itertools
 from collections import defaultdict
-from loomtrain.utils.common.iotools import save_pkl, read_pkl
+from loomtrain.core.utils.common.iotools import save_pkl, read_pkl
 
 CALLABLE = TypeVar("CALLABLE")
 

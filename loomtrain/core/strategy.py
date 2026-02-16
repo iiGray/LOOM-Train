@@ -5,7 +5,7 @@ from torch import nn
 import torch.utils.data as tud
 import torch.distributed as dist
 from datetime import timedelta
-from loomtrain.dataset.base import CollateDataset
+from loomtrain.core.utils.lora import LoRAConfig, get_peft_model
 from loomtrain.core.data.dataloader.base import DataLoaderStateDict
 from loomtrain.core.data.dataloader.iter import MapDataLoader
 
@@ -177,6 +177,7 @@ class TrainStrategy:
     def __init__(self,
                  parallel_config: "parallel.ParallelConfig" = None,
                  data_config: "DataConfig" = None,
+                 lora_config: "LoRAConfig" = None,
                  full_determinism: "bool" = None,
                  seed: "int" = None):
         if parallel_config is None:
@@ -202,8 +203,17 @@ class TrainStrategy:
                 drop_exceed = args().drop_exceed
             )
         
+        if lora_config is None:
+            lora_config = None if args().diable_lora else LoRAConfig(
+                r = args().lora_r,
+                lora_alpha = args().lora_alpha,
+                target_modules = args().lora_target_modules,
+                lora_dropout = args().lora_dropout,
+            )
+
         self.parallel_config = parallel_config
         self.data_config = data_config
+        self.lora_config = lora_config
 
         self._optim_configs_ = None
 
@@ -273,8 +283,18 @@ class TrainStrategy:
     def init_distributed(self):
         raise NotImplementedError
 
-    def config_module(self): ...
+    def _config_lora(self, actor: "Actor"):
+        if self.lora_config is not None:
+            actor.model.enable_input_require_grads()
+            peft_model = get_peft_model(actor.model, self.lora_config)
+            self.set_submodule(actor, "model", peft_model)
+            
+        return actor
 
+    def prepare_if_lora(self):
+        if self.lora_config is None: return
+        for actor_name in self.split_submodules_by_actors():
+            self._config_lora(self.get_submodule(actor_name))
 
     def save_ckpt(self, save_dir: "str", tag: "str"):
         raise NotImplementedError

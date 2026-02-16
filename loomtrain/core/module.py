@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from loomtrain.core.datamodule import DataModule
     from loomtrain.core.data.dataloader.iter import MicroBatch
 from loomtrain.core.visualization import LogDict, AccumLogDict, Accum
-from loomtrain.utils.lora import LoRAConfig, get_peft_model
 from dataclasses import dataclass
 import loomtrain as lt
 
@@ -171,6 +170,8 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
         This Function can either be implemented manually, or be replaced by train_strategy'''
         return self.strategy.save_module(save_dir, tag)
 
+    def prepare_if_lora(self):
+        return self.strategy.prepare_if_lora()
 
     def config_module(self):
         '''

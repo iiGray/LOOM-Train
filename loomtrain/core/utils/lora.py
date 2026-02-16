@@ -1,4 +1,4 @@
-from loomtrain.utils.common.iotools import read_json, save_json, path_join
+from loomtrain.core.utils.common.iotools import read_json, save_json, path_join
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import (
     LoraConfig, 

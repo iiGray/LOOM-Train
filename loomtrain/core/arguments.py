@@ -39,6 +39,7 @@ def args() -> "argparse.Namespace":
         _ARGUMENTS_ = _init_args([
             _add_data_config_arguments,
             _add_parallel_config_arguments,
+            _add_lora_config_arguments,
             _add_checkpoint_config_arguments,
             _add_visualization_config_arguments,
             _add_base_strategy_arguments,
@@ -183,6 +184,30 @@ def _add_parallel_config_arguments(parser: "argparse.ArgumentParser"):
     group.add_argument(
         "--cp-args", type = json.loads, default = '{"head_stride": 1}',
         help = "The args of context parallelism in json format"
+    )
+
+def _add_lora_config_arguments(parser: "argparse.ArgumentParser"):
+    group = parser.add_argument_group(title = "Low Rank Config Arguments")
+
+    group.add_argument(
+        "--disable-lora", type = bool, default = True,
+        help = "Set False to enable lora"
+    )
+    group.add_argument(
+        "--lora-r", type = int, default = 32,
+        help = "The lora Rank"
+    )
+    group.add_argument(
+        "--lora-alpha", type = int, default = 16,
+        help = "The Lora Strength"
+    )
+    group.add_argument(
+        "--lora-target-modules", type = str, default = "all-linear",
+        help = "The Lora Module"
+    )
+    group.add_argument(
+        "--lora-dropout", type = float, default = 0.0,
+        help = "The Lora Dropout"
     )
 
 def _add_checkpoint_config_arguments(parser: "argparse.ArgumentParser"):
