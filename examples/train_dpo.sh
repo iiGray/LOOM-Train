@@ -24,7 +24,7 @@ torchrun \
     --rejected-key rejects \
     --num-rejects 1 \
     --lr 2e-6 \
-    --beta 2.5 \
+    --beta 0.1 \
     --nll-loss-weight 0.05 \
     --enable-micro-bar true \
     --save-dir ./test-dpo 
