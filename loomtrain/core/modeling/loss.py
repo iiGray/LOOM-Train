@@ -89,7 +89,7 @@ def logps_from_logits(logits: "torch.FloatTensor",
 
 
 class DPOLoss(nn.Module):
-    def __init__(self, beta: "float" = None, label_smoothing: "float" = 0.0, ipo: "bool" = False):
+    def __init__(self, beta: "float" = None, label_smoothing: "float" = None, ipo: "bool" = None):
         super().__init__()
         if beta is None:
             beta = args().beta
@@ -108,7 +108,7 @@ class DPOLoss(nn.Module):
                 reference_chosen_logps: "torch.FloatTensor",
                 reference_rejected_logps: "torch.FloatTensor"):
         policy_delta = policy_chosen_logps - policy_rejected_logps
-        reference_delta = reference_chosen_logps - reference_chosen_logps
+        reference_delta = reference_chosen_logps - reference_rejected_logps
 
         logits = policy_delta - reference_delta
 
