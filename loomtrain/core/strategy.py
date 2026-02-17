@@ -240,7 +240,7 @@ class TrainStrategy:
             optim_group.total_steps = datamodule.total_train_steps
 
     @property
-    def opt_groups(self): return self.module.actors
+    def opt_groups(self): return self.module.trainable_actors
 
     @property
     def optim_configs(self):
@@ -252,7 +252,7 @@ class TrainStrategy:
     def optim_configs(self, optim_configs: "dict[str, OptimConfig]"):
         self._optim_configs_ = optim_configs
     
-    def get_submodule(self, name_path: str):
+    def get_submodule(self, name_path: str) -> "Actor":
         if name_path.startswith("."): 
             name_path = "module" + name_path
         elif not name_path.startswith("module"):

@@ -120,15 +120,33 @@ class Module(CheckpointMixin, metaclass = LazyInitializeMeta):
         for k, v in vars(self).items():
             if isinstance(v, Actor): self._actors[k] = v
         return self._actors
+    
+    @property
+    def trainable_actors(self) -> "dict[str, Actor]":
+        self._trainable_actors = AttrDict()
+        for k, v in vars(self).items():
+            if isinstance(v, Actor) and v.trainable:
+                self._trainable_actors[k] = v
+        return self._trainable_actors
+    
+    @property
+    def frozen_actors(self) -> "dict[str, Actor]":
+        self._frozen_actors = AttrDict()
+        for k, v in vars(self).items():
+            if isinstance(v, Actor) and (not v.trainable):
+                self._frozen_actors[k] = v
+        return self._frozen_actors
 
     @property
     def training(self):
         return next(self.actors.values()).training
     def train(self):
-        for actor in self.actors.values():
+        for actor in self.trainable_actors.values():
             actor.train()
+        for actor in self.frozen_actors.values():
+            actor.eval()
     def eval(self):
-        for actor in self.actors.values():
+        for actor in self.trainable_actors.values():
             actor.eval()
 
     def _connect_datamodule(self, datamodule: "DataModule"):
