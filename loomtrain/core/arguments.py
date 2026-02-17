@@ -357,4 +357,11 @@ def _add_deepspeed_strategy_arguments(parser: "argparse.ArgumentParser"):
         "--load-universal", type = bool , default = False,
         help = "Whether to load universal model"
     )
-
+    group.add_argument(
+        "--deepspeed-tp-size", type = int, default = 1,
+        help = "Tensor parallel size of deepspeed"
+    )
+    group.add_argument(
+        "--enable-deepcompile", action = 'store_true',
+        help = "Whether to compile deepspeed engine"
+    )
