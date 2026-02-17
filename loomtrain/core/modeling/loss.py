@@ -10,15 +10,17 @@ from loomtrain.core.parallel import parallel_state as parallel
 from loomtrain.core.arguments import args
 
 
-def get_loss_cls(loss_type: "Literal['ce', 'simpo', 'bt']" = "ce"):
+def get_loss_cls(loss_type: "Literal['ce', 'simpo', 'dpo', 'bt']" = "ce"):
     if loss_type == "ce":
         return GPTCELoss
     elif loss_type == "simpo":
         return SimPOLoss
+    elif loss_type == "dpo":
+        return DPOLoss
     elif loss_type == "bt":
         return BradleyTerryLoss
 
-def init_loss_fn(loss_type: "Literal['ce', 'simpo', 'bt']" = "ce", *loss_args, **loss_kwargs):
+def init_loss_fn(loss_type: "Literal['ce', 'simpo', 'dpo', 'bt']" = "ce", *loss_args, **loss_kwargs):
     return get_loss_cls(loss_type)(*loss_args, **loss_kwargs)
 
 
@@ -87,8 +89,15 @@ def logps_from_logits(logits: "torch.FloatTensor",
 
 
 class DPOLoss(nn.Module):
-    def __init__(self, beta: "float", label_smoothing: "float" = 0.0, ipo: "bool" = False):
+    def __init__(self, beta: "float" = None, label_smoothing: "float" = 0.0, ipo: "bool" = False):
         super().__init__()
+        if beta is None:
+            beta = args().beta
+        if label_smoothing is None:
+            label_smoothing = args().label_smoothing
+        if ipo is None:
+            ipo = args().ipo
+
         self.beta = beta
         self.label_smoothing = label_smoothing
         self.ipo = ipo
