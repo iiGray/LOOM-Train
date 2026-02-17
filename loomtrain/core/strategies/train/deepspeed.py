@@ -105,6 +105,9 @@ class DeepspeedStrategy(TrainStrategy):
 
             self.module.set_actor(actor_name, actor)
 
+        for actor_name, actor in self.module.frozen_actors.items():
+            actor = self._prepare_eval(self.get_submodule(actor_name))
+            self.module.set_actor(actor_name, actor)
 
     def backward(self, loss: "torch.Tensor", actor_of_the_loss: "Actor" = None):
         actor_of_the_loss.model.backward(loss)
@@ -159,6 +162,35 @@ class DeepspeedStrategy(TrainStrategy):
 
         return model, optimizer, scheduler
     
+    def _prepare_eval(self, actor: "Actor"):
+        config = deepspeed_eval_config(
+            offload = args().offload, 
+            stage = 3 if args().zero_stage == 3 else 0,
+            enable_bf16 = args().enable_bf16
+        )
+
+        if args().deepspeed_tp_size > 1:
+            tp_model = deepspeed.tp_model_init(
+                model = actor.model, 
+                tp_size = args().deepspeed_tp_size,
+                dtype = torch.bfloat16
+            )
+            actor.model = tp_model
+        
+        engine, *_ = deepspeed.initialize(
+            model = actor.model,
+            args = dict(local_rank = int(os.environ.get("LOCAL_RANK", "-1"))),
+            config = config,
+            dist_init_required = True
+        )
+
+        if args().enable_deepcompile:
+            engine.compile()
+
+        actor.model = engine
+
+        return actor
+
 
     def save_ckpt(self, save_dir: str, tag: str):
         for name, actor in self.opt_groups.items():
@@ -356,10 +388,13 @@ def deepspeed_train_config(
 def deepspeed_eval_config(
     offload: bool,
     stage: Literal[0, 1, 2, 3] = 0, # 默认不启用
-    enable_bf16: bool = True,
+    enable_bf16: bool = True,    
     train_batch_size: int = 1,
     train_micro_batch_size_per_gpu: int = 1,
+    gradient_accumulation_steps: int = 1
 ):
+    deepcompile = False
+
     zero_opt_dict = dict(
         stage = stage,
         stage3_max_live_parameters = "auto",
@@ -375,13 +410,15 @@ def deepspeed_eval_config(
         steps_per_print = 100,
         zero_optimization = zero_opt_dict,
         bf16 = dict(enabled = enable_bf16),
-        fp16 = dict(enabled = not enable_bf16),
-        train_batch_size = train_batch_size,
+        fp16 = dict(enabled = not enable_bf16),        
+        # train_batch_size = train_batch_size,
         train_micro_batch_size_per_gpu = train_micro_batch_size_per_gpu,
+        gradient_accumulation_steps = gradient_accumulation_steps,
         gradient_clipping = 1.0,
         prescale_gradients = False,
         wall_clock_breakdown = False,
-
+        compile = dict(deepcompile = deepcompile),
+        tensor_parallel = dict(autotp_size = args().deepspeed_tp_size)
     )
 
 
