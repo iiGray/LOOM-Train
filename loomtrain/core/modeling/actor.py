@@ -26,8 +26,9 @@ def get_actor_cls(actor_type: "Literal['causal', 'classifier']" = "causal",
 
 def init_actor(model_path, 
                model_type: "Literal['causal', 'classifier']" = "causal", 
-               collate_type: "Literal['packing', 'padding']" = "packing") -> "Actor":
-    actor = get_actor_cls(model_type, collate_type)(init_model(model_path, model_type = model_type))
+               collate_type: "Literal['packing', 'padding']" = "packing",
+               trainable: "bool" = True) -> "Actor":
+    actor = get_actor_cls(model_type, collate_type)(init_model(model_path, model_type = model_type), trainable = trainable)
     actor.init_args = AttrDict(model_path = model_path, 
                                model_type = model_type, 
                                collate_type = collate_type)
@@ -94,7 +95,7 @@ class PackingGPT(Actor):
         return output
 
 class PackingClassifier(Actor):
-    def __init__(self, model: "nn.Module"):
+    def __init__(self, model: "nn.Module", trainable: "bool" = True):
         model._org_forward = model.forward
         
         train_forward = getattr(train_forwards,  model.config.architectures[0],
@@ -102,7 +103,7 @@ class PackingClassifier(Actor):
 
         model.forward = partial(train_forward, model = model)
 
-        super().__init__(model)
+        super().__init__(model, trainable)
 
 
 
