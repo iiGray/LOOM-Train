@@ -99,6 +99,8 @@ class Dataset(metaclass = LazyInitializeMeta):
 
         if sample_count is None:
             sample_count = round(len(dataset) * sample_ratio)
+        elif sample_count < 0:
+            sample_count = len(dataset)
         else:
             sample_count = min(len(dataset), sample_count)
 
