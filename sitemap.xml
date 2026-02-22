@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+    <url>
+        <loc>https://iigray.github.io/LOOM-Train/</loc>
+        <lastmod>2026-02-22</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://iigray.github.io/LOOM-Train/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://iigray.github.io/LOOM-Train/en/"/>
+    </url>
+    <url>
+        <loc>https://iigray.github.io/LOOM-Train/Installation/page1/</loc>
+        <lastmod>2026-02-22</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://iigray.github.io/LOOM-Train/Installation/page1/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://iigray.github.io/LOOM-Train/en/Installation/page1/"/>
+    </url>
+    <url>
+        <loc>https://iigray.github.io/LOOM-Train/en/</loc>
+        <lastmod>2026-02-22</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://iigray.github.io/LOOM-Train/en/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://iigray.github.io/LOOM-Train/"/>
+    </url>
+    <url>
+        <loc>https://iigray.github.io/LOOM-Train/en/Installation/page1/</loc>
+        <lastmod>2026-02-22</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://iigray.github.io/LOOM-Train/en/Installation/page1/"/>
+        <xhtml:link rel="alternate" hreflang="zh" href="https://iigray.github.io/LOOM-Train/Installation/page1/"/>
+    </url>
+</urlset>
