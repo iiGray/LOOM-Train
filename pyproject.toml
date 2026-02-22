@@ -3,7 +3,7 @@ requires = ["setuptools>=40.8.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "Loom-Train"
+name = "loomtrain"
 version = "0.1.0"
 description = "A Simple & Efficient Training Framework for Long-Context LLMs."
 authors = [
@@ -25,7 +25,7 @@ dependencies = [
     "addict",
     "tabulate",
 
-    "transformers==4.51.1",
+    "transformers==4.57.1",
     "peft",              # lora
     # flash-attn,
     "openai",
@@ -61,6 +61,8 @@ package-dir = {"" = "."}
 where = [".."]
 include = ["loomtrain"] 
 
+[tool.setuptools.package-data]
+loomtrain = ["py.typed"]
 
 [project.scripts]
 "loomtrain-required-flash-attn" = "loomtrain.utils.help.cli.version:required_flash_attn"

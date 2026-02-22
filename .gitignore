@@ -1,4 +1,5 @@
 **/__pycache__
+**/loomtrain.egg-info
 Llama3.1-LonMiT-Reward-Vote-fixed
 examples/train_simpo_classifier_long.sh
 examples/train_sft_long.sh
