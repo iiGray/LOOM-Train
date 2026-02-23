@@ -30,22 +30,30 @@ class GPTCELoss(nn.Module):
         self.ignore_index = ignore_index
         self.loss = nn.CrossEntropyLoss(ignore_index = ignore_index)
     
-    def forward(self, logits: "torch.Tensor", labels: "torch.Tensor") -> torch.Tensor:
+    def forward(self, logits: "torch.Tensor", labels: "torch.Tensor", shift_labels: "bool" = True) -> torch.Tensor:
         '''
         logits: ring local logits (including the last useless logit)
         '''
         
         total_seq_len = labels.size(-1)
         seq_len_per_process = total_seq_len // parallel.get_cp_size()
-        start_idx = parallel.get_cp_rank() * seq_len_per_process + 1
-        
-        end_idx = min(start_idx + seq_len_per_process, total_seq_len)
-        
-        full_labels = labels
-        labels = labels[..., start_idx: end_idx] #shift_logits is automatic between star_idx and end_idx
 
-        if parallel.get_cp_rank() + 1 == parallel.get_cp_size():
-            labels = F.pad(labels, (0, 1), value = self.loss.ignore_index)
+        if shift_labels:
+            start_idx = parallel.get_cp_rank() * seq_len_per_process + 1
+            
+            end_idx = min(start_idx + seq_len_per_process, total_seq_len)
+            
+            full_labels = labels
+            labels = labels[..., start_idx: end_idx] #shift_logits is automatic between star_idx and end_idx
+
+            if parallel.get_cp_rank() + 1 == parallel.get_cp_size():
+                labels = F.pad(labels, (0, 1), value = self.loss.ignore_index)
+        else:
+            start_idx = parallel.get_cp_rank() * seq_len_per_process
+            end_idx = start_idx + seq_len_per_process
+            full_labels = labels
+            labels = labels[..., start_idx: end_idx]
+
 
         shift_logits = logits.contiguous()
         shift_labels = labels.contiguous()
