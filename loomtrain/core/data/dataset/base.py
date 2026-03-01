@@ -223,7 +223,9 @@ class DatasetDict(metaclass = LazyInitializeMeta):
                  load_mode: Literal["from_disk", "from_json", "from_csv"] = "from_disk",
                  train_count: int = None, train_ratio: float = None,
                  val_count: int = None, val_ratio: float = None, random_seed: int = 42, num_proc:int = 8,
-                 filter_fn = None, map_fn = None, get_fn = None,
+                 filter_fn = None, map_fn = None, 
+                 filter_first = None, map_first = None,
+                 get_fn = None,
                    **keys_dict):
         if load_mode == "from_disk":
             dataset_dict = datasets.load_from_disk(dataset_dict_path)
@@ -236,6 +238,14 @@ class DatasetDict(metaclass = LazyInitializeMeta):
 
         self._dataset_objects_: "dict[str, Dataset]" = dict()
 
+        if filter_first is None and map_first is None:
+            filter_first = True
+            map_first = False
+        elif map_first:
+            filter_first = False
+        elif filter_first:
+            map_first = False
+
         for split, dataset in dataset_dict.items():
             if split == "train":
                 self._dataset_objects_[split] = Dataset(
@@ -244,7 +254,9 @@ class DatasetDict(metaclass = LazyInitializeMeta):
                     sample_ratio = train_ratio,
                     random_seed = random_seed,
                     num_proc = num_proc,
-                    filter_fn = filter_fn, map_fn = map_fn, get_fn = get_fn,
+                    filter_fn = filter_fn, map_fn = map_fn, 
+                    filter_first = filter_first, map_first = map_first,
+                    get_fn = get_fn,
                     **keys_dict
                 )
             elif split in ["val", "eval"]:
@@ -254,7 +266,9 @@ class DatasetDict(metaclass = LazyInitializeMeta):
                     sample_ratio = val_ratio,
                     random_seed = random_seed,
                     num_proc = num_proc,
-                    filter_fn = filter_fn, map_fn = map_fn, get_fn = get_fn,
+                    filter_fn = filter_fn, map_fn = map_fn, 
+                    filter_first = filter_first, map_first = map_first,
+                    get_fn = get_fn,
                     **keys_dict
                 )
             else: continue
