@@ -1,0 +1,36 @@
+psutil
+pyyaml
+pandas
+tqdm
+gpustat
+nvitop
+modelscope   
+addict 
+tabulate
+
+transformers==4.51.1
+peft              # lora
+# flash-attn
+
+openai  
+datasets
+accelerate
+
+nltk  
+seaborn  
+
+tenacity   
+wonderwords    
+nemo_toolkit[common] 
+
+rouge     
+jieba   
+fuzzywuzzy  
+python-Levenshtein
+
+
+
+
+#llm train
+deepspeed
+wandb
