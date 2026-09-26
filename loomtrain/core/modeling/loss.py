@@ -58,12 +58,20 @@ class GPTCELoss(nn.Module):
         shift_logits = logits.contiguous()
         shift_labels = labels.contiguous()
 
-        if torch.all(shift_labels == self.ignore_index):
+        calculated = (shift_labels != self.ignore_index).long().sum().item()
+
+        if calculated == 0:
             loss = shift_logits.mean() * 0
         else:
-            loss = self.loss(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+            losses, _ = cross_entropy_loss(
+                shift_logits.view(-1, shift_logits.size(-1)), 
+                shift_labels.view(-1), 
+                ignore_index = self.ignore_index,
+                inplace_backward = True
+            )
+            valid_mask = (shift_labels.view(-1) != self.ignore_index)
+            loss = losses[valid_mask].mean() if valid_mask.any() else shift_logits.mean() * 0
 
-        calculated = (shift_labels != self.ignore_index).long().sum().item()
         all_calculated = (full_labels != self.ignore_index).long().sum().item()
 
         loss *= (calculated / max(all_calculated, 1))
