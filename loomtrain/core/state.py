@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-import torch.distributed as dist
-from loomtrain.core.utils.common.iotools import IO
+import os, torch.distributed as dist
+from loomtrain.core.utils.common.iotools import IO, dirname
 from loomtrain.core.utils import rank0print
-from loomtrain.core.strategy import *
-
+from loomtrain.core.distributed.handle import RayHandleMixin
 
 @dataclass
 class CheckpointConfig:
@@ -57,7 +56,11 @@ class CheckpointMixin:
     def _get_saving_interval(self, checkpoint_config: "CheckpointConfig") -> bool:
         '''extract saving interval from checkpoint_config and return it'''
         return checkpoint_config.ckpt_interval
-
+    
+    def _prepare_strategy(self):
+        return
+    
+    @RayHandleMixin.remote
     def _update_(self, *args, **kwargs):
         self._global_step += 1
         return self._update(*args, **kwargs)
@@ -78,7 +81,7 @@ class CheckpointMixin:
             ret = self._get_ckpt_path_from_dir(sub_path)
             if ret: return ret
             
-
+    @RayHandleMixin.remote
     def _save_ckpt(self, checkpoint_config: "CheckpointConfig", inplace: "bool" = False, save_interval: "int" = None, update_tag: "bool" = False, finished: "bool" = False):
         if save_interval is None: save_interval = self._get_saving_interval(checkpoint_config)
         if (self.global_step % save_interval) and (not finished): return
@@ -130,6 +133,7 @@ class CheckpointMixin:
 
     
 
+    @RayHandleMixin.remote
     def _load_ckpt(self, checkpoint_config: "CheckpointConfig", inplace: bool = False):
         self.checkpoint_config = checkpoint_config
         saved_dir = checkpoint_config.save_dir
