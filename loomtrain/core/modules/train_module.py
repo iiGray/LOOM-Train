@@ -371,7 +371,8 @@ class TrainModule(CheckpointMixin, RayHandleMixin):
         batches = CountableIterator(batches)
         batches = self.rollout(batches)# only synchronized mode
 
-        train_logs_dict = self._train(batches)
+        train_logs_dict = dict()
+        train_logs_dict.update(self._train(batches))
         train_logs_dict.update(self.non_accum_logs_per_step())
         
         return train_logs_dict
