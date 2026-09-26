@@ -48,6 +48,7 @@ class PackingSampler(StatefulSampler):
         self.sort_by_length = sort_by_length
         self.shuffle = shuffle
         self.micro_batch_size = micro_batch_size
+        self.batch_size = micro_batch_size
         self.seed = seed
         self.drop_last = drop_last
         self.drop_exceed = drop_exceed
@@ -186,7 +187,7 @@ class PackingSampler(StatefulSampler):
                 yield micro_batch
 
     def __len__(self) -> int:
-        consumed_indices_per_rank = self.consumed_indices // self.num_replicas
+        consumed_indices_per_rank = self.consumed_indices
         num_batches = len(self.all_batches) - consumed_indices_per_rank
         if self.micro_batch_size == 1:
             return max(0, num_batches)
