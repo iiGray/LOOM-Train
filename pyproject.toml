@@ -26,8 +26,8 @@ dependencies = [
     "tabulate",
 
     "transformers==4.57.1",
-    "peft",              # lora
-    # flash-attn,
+    "rich",
+    "tensorboard",
     "openai",
     "datasets",
     "accelerate",
