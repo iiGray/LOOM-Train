@@ -1,3 +1,4 @@
+from ray.air.integrations.wandb import Run
 from typing import Literal, List, Any
 from dataclasses import dataclass, field 
 import torch
@@ -400,8 +401,15 @@ def initialize(parallel_config: "ParallelConfig"):
         assert rank in parallel_group_ranks \
             and len(parallel_group_ranks) == getattr(device_mesh.parallel_config, parallel_type), f"Group:{parallel_group_ranks}, Rank:{rank}, Parallel: {parallel_type} = {getattr(device_mesh.parallel_config, parallel_type)}"
         
-        #TODO: the argument 'backend' should be configurable
-        group = dist.new_group(ranks = parallel_group_ranks, backend = "nccl")
+        # Every world rank must call new_group for every subgroup in the same
+        # order, including groups it does not belong to.
+        group = None
+        for ranks in device_mesh.parallel_type2rank[parallel_type]:
+            current_group = dist.new_group(ranks = ranks, backend = "nccl")
+            if rank in ranks:
+                group = current_group
+        if group is None:
+            raise RuntimeError("Fail to find process group")
 
         set_parallel_group(group, parallel_type)
         set_parallel_ranks(parallel_group_ranks, parallel_type)
