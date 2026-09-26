@@ -14,7 +14,7 @@ from loomtrain.core.data.dataloader.iter import MapDataLoader
 from loomtrain.core.utils import *
 from loomtrain.core.arguments import add_extra_arguments_by, args
 from loomtrain.core.parallel import parallel_state as parallel
-from loomtrain.core.datamodule import DataModule
+from loomtrain.core.modules.data_module import DataModule
 
 if TYPE_CHECKING:
     from loomtrain.core.module import Module
@@ -24,6 +24,17 @@ if TYPE_CHECKING:
 
 from dataclasses import dataclass
 from functools import partial
+
+from loomtrain.core.distributed.resource import (
+    LOCAL_RANK_NAME,
+    LOCAL_WORLD_SIZE_NAME
+)
+
+
+
+class Strategy:
+    def setup_distributed(self):
+        dist.init_process_group()
 
 
 @dataclass
@@ -45,7 +56,7 @@ class DataConfig:
     def grad_accum(self):
         return self.global_batch_size * parallel.get_cp_size() // self.micro_batch_size // parallel.get_world_size()
 
-class DataStrategy: 
+class DataStrategy(Strategy): 
     '''
     prepare dataloader (This class is mainly designed for different data packing algorithms)
     '''
@@ -111,6 +122,9 @@ class DataStrategy:
         assert isinstance(datamodule, DataModule)
         self.datamodule = datamodule
 
+    def setup_distributed(self):
+        dist.init_process_group()
+        parallel.initialize(self.parallel_config)
 
     def setup_train_data_iter(self):
         raise NotImplementedError
@@ -168,8 +182,16 @@ class OptimConfig:
 
         return self._num_warmup_steps
 
+
+class RolloutStrategy:
+    '''
+    Prepare Reward model, Rollout model
+    '''
+    ...
+
+
 # TBD
-class TrainStrategy:
+class TrainStrategy(Strategy):
     '''
     Prepare model, optimizer, scheduler
     '''
@@ -348,10 +370,10 @@ class TrainStrategy:
         return self._rank
 
     def get_local_rank(self):
-        return int(os.environ["LOCAL_RANK"])
+        return int(os.environ[LOCAL_RANK_NAME])
     
     def get_local_world_size(self):
-        return int(os.environ["LOCAL_WORLD_SIZE"])
+        return int(os.environ[LOCAL_WORLD_SIZE_NAME])
 
     def set_seed(self):
         if self.full_determinism:
@@ -361,7 +383,9 @@ class TrainStrategy:
             transformers.set_seed(self.seed)
     
     def set_device(self):
-        torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
+        """In Ray, each rank has one GPU, so we set the device to 0"""
+        torch.cuda.set_device(0)
+        # torch.cuda.set_device(int(os.environ[LOCAL_RANK_NAME]))
 
 
 
