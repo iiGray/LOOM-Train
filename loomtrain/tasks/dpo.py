@@ -8,11 +8,11 @@ from loomtrain.tasks.simpo import SimPODataModule
 class DPODataModule(SimPODataModule): ...
 
 
-class DPOModule(lt.Module):
-    def __init__(self, model_path: str = None, ref_model_path: str = None, tokenizer_path: str = None, 
+class DPOModule(lt.TrainModule):
+    def __init__(self, strategy, model_path: str = None, ref_model_path: str = None, tokenizer_path: str = None, 
                  model_type: str = "causal", collate_type = "packing", 
                  optim_config: "lt.OptimConfig | dict[str, lt.OptimConfig]" = lt.OptimConfig()):
-        super().__init__(optim_configs = optim_config)
+        super().__init__(strategy = strategy, optim_configs = optim_config)
 
         if model_path is None: model_path = args().model_path
         if ref_model_path is None: ref_model_path = args().model_path

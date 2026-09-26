@@ -7,10 +7,11 @@ from loomtrain.core import args
 
 class SFTDataModule(lt.DataModule):
     def __init__(self, 
+                 strategy,
                  dataset_dicts: "list[lt.data.DatasetDict]", 
                  tokenizer_path: str = None,
                  max_length: int = None):
-        super().__init__()
+        super().__init__(strategy)
         if tokenizer_path is None:
             tokenizer_path = args().tokenizer_path
         if max_length is None:
@@ -142,10 +143,10 @@ class SFTDataModule(lt.DataModule):
         return self.dataset_dict[args().val_split]
 
 
-class SFTModule(lt.Module):
-    def __init__(self, model_path: str = None, tokenizer_path: str = None, model_type: str = "causal", collate_type = "packing", 
+class SFTModule(lt.TrainModule):
+    def __init__(self, strategy, model_path: str = None, tokenizer_path: str = None, model_type: str = "causal", collate_type = "packing", 
                  optim_config: "lt.OptimConfig | dict[str, lt.OptimConfig]" = lt.OptimConfig()):
-        super().__init__(optim_configs = optim_config)
+        super().__init__(strategy, optim_configs = optim_config)
 
         if model_path is None: model_path = args().model_path
         if tokenizer_path is None: tokenizer_path = args().tokenizer_path

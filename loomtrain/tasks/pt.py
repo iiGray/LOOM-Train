@@ -10,10 +10,11 @@ class PTModule(SFTModule): ...
 
 class PTDataModule(lt.DataModule):
     def __init__(self, 
+                 strategy,
                  dataset_dicts: "list[lt.data.DatasetDict]", 
                  tokenizer_path: str = None,
                  max_length: int = None):
-        super().__init__()
+        super().__init__(strategy)
         if tokenizer_path is None:
             tokenizer_path = args().tokenizer_path
         if max_length is None:
