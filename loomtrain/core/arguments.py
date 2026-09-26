@@ -32,6 +32,9 @@ def add_extra_arguments_by(add_func: "Callable | list[Callable]"):
     else:
         _EXTRA_ARGUMENTS_.append(add_func)
 
+def set_args(config: dict):
+    global _ARGUMENTS_
+    _ARGUMENTS_ = argparse.Namespace(**config)
 
 def args() -> "argparse.Namespace":
     global _ARGUMENTS_, _EXTRA_ARGUMENTS_
