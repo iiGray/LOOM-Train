@@ -115,8 +115,10 @@ class SupervisedLoop(FitLoop):
 
             self.train_module.ready()
             self.data_module.ready()
+        except Exception as e: raise
 
         finally:
             vis_module.release()
             self._close_terminal_log()
+            ray.shutdown()
 
