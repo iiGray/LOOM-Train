@@ -54,7 +54,8 @@ class MapDataLoader(tud.DataLoader, StatefulDataLoaderMixin, metaclass = LazyIni
         self._stateful_batch_sampler = batch_sampler
 
         self.num_epochs = num_epochs
-        self._current_epoch = 0
+        if not hasattr(self, "_current_epoch"):
+            self._current_epoch = 0 # start epoch
         self._exhausted = False
 
         self.data_iter = iter(self)
@@ -88,15 +89,15 @@ class MapDataLoader(tud.DataLoader, StatefulDataLoaderMixin, metaclass = LazyIni
         return current_batch
 
     def __iter__(self):
-        batch_indice_size = (self.batch_size if self.batch_size else 1) * parallel.get_dp_size()
+        batch_indice_size = (self.batch_size if self.batch_size else self.batch_sampler.batch_size) * parallel.get_dp_size()
         for epoch in range(self.num_epochs):
-            self._current_epoch = epoch
-            if epoch < self.current_epoch: continue
+            if epoch < self._current_epoch: continue
+            self.current_epoch = epoch
 
             self.stateful_sampler.set_state(
-                epoch, 0 if epoch > self.current_epoch else self.consumed_indices
+                epoch, 0 if epoch > self._current_epoch else self.consumed_indices
             )
-            self.consumed_indices = 0 if epoch > self.current_epoch else self.consumed_indices
+            self.consumed_indices = 0 if epoch > self._current_epoch else self.consumed_indices
             for batch, num_samples in iter(super().__iter__()):
                 yield MicroBatch(batch = batch, num_samples = num_samples)
                 self.consumed_samples += int(parallel.all_reduce(num_samples, op = "sum")) // parallel.get_dp_count()

@@ -45,7 +45,7 @@ class StatefulDataLoaderMixin:
         self._consumed_indices_ = i
 
     def set_state(self, current_epoch: "int" = 0, consumed_samples: "int" = 0, consumed_indices: "int" = 0):
-        self.current_epoch = current_epoch
+        self._current_epoch = current_epoch
         self.consumed_samples = consumed_samples
         self.consumed_indices = consumed_indices
 
