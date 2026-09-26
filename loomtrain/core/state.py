@@ -63,7 +63,14 @@ class CheckpointMixin:
     @RayHandleMixin.remote
     def _update_(self, *args, **kwargs):
         self._global_step += 1
-        return self._update(*args, **kwargs)
+        try:
+            return self._update(*args, **kwargs)
+        except Exception as e:
+            import traceback, os
+            os.makedirs("./err_logs", exist_ok = True)
+            with open(f"./err_logs/ray_worker_error_{os.getpid()}.log", "w") as f:
+                traceback.print_exc(file = f)
+            raise e
 
     def _get_mtime_from_ckpt_path(self, path: "str"):
         mtime = float("inf")
