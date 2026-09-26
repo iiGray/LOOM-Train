@@ -213,6 +213,7 @@ class DistributedBucketSampler(StatefulSampler):
         self.shuffle = shuffle
         self.seed = seed
         self.consumed_indices = consumed_samples // self.num_replicas
+        self.batch_size = 1
 
     def __iter__(self) -> Iterator[_T_co]:
         if self.shuffle:
