@@ -90,8 +90,6 @@ class PackingGPT(Actor):
         seq_lens = seq_lens, attention_mask = attention_mask)
         output = self.model(input_ids = input_ids, attention_mask = attention_mask, position_ids = position_ids)
 
-        output["logits"] = output["logits"].to(torch.float32)
-
         return output
 
 class PackingClassifier(Actor):
