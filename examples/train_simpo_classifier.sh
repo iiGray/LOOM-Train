@@ -6,7 +6,7 @@ torchrun \
     --nproc_per_node=8 \
     --nnodes=1 \
     --master_port=29500 \
-    -m loomtrain.scripts.train_simpo \
+    -m linktrain.scripts.train_simpo \
     --model-path /data/preference_dataset \
     --dataset-paths meta-llama/Meta-Llama-3.1-8B-Instruct/ \
     --train-samples 800 \

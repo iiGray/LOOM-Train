@@ -38,18 +38,18 @@
 
 ## 💻 Environment & Installation
 
-To install the`loomtrain` package from the gitee repository, run:
+To install the`linktrain` package from the gitee repository, run:
 
 ```bash
 git clone https://github.com/LCM-Lab/LOOM-Train.git
 conda create -n loom_train python=3.10 -y
 conda activate loom_train
-cd LOOM-Train/loomtrain
+cd LOOM-Train/linktrain
 pip install -e .
 ```
 To install flash attention, run the command below to obtain the required `flah-attn` version:
 ```bash
-loomtrain-required-flash-attn
+linktrain-required-flash-attn
 ```
 
 Download the suitable version of flash_attn from https://github.com/Dao-AILab/flash-attention/releases
@@ -62,12 +62,12 @@ pip install ring_flash_attn
 
 ## 🛠️ Getting Started
 ```python
-from loomtrain.tasks import (
+from linktrain.tasks import (
     SFTModule,
     SFTDataModule,
 
 )
-from loomtrain import core as lt
+from linktrain import core as lt
 def train():
     args = lt.args()
      # You may also define your own training tasks by inheriting lt.Module / lt.DataModule, see the docs for more details

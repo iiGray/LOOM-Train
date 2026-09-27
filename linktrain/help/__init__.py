@@ -1,0 +1,1 @@
+from linktrain.help.version import Version

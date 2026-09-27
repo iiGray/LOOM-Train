@@ -3,7 +3,7 @@ requires = ["setuptools>=40.8.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "loomtrain"
+name = "linktrain"
 version = "0.1.0"
 description = "A Simple & Efficient Training Framework for Long-Context LLMs."
 authors = [
@@ -59,10 +59,10 @@ dependencies = [
 package-dir = {"" = "."} 
 [tool.setuptools.packages.find]
 where = [".."]
-include = ["loomtrain"] 
+include = ["linktrain"] 
 
 [tool.setuptools.package-data]
-loomtrain = ["py.typed"]
+linktrain = ["py.typed"]
 
 [project.scripts]
-"loomtrain-required-flash-attn" = "loomtrain.utils.help.cli.version:required_flash_attn"
+"linktrain-required-flash-attn" = "linktrain.utils.help.cli.version:required_flash_attn"

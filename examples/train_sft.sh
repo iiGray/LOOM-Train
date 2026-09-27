@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Start the Ray cluster once: bash loomtrain/ray_cluster.sh head
+# Start the Ray cluster once: bash linktrain/ray_cluster.sh head
 export PYTHONWARNINGS="ignore"
 export NCCL_NVLS_ENABLE=0
 export PYTHONUNBUFFERED=1
 
-exec python "$(dirname "$0")/../loomtrain/scripts/ray_launch.py" \
+exec python "$(dirname "$0")/../linktrain/scripts/ray_launch.py" \
     --execution=supervised \
     --nproc_per_node=8 \
     --nnodes=1 \
     --master_port=29500 \
     "$@" \
-    -m loomtrain.scripts.train_sft \
+    -m linktrain.scripts.train_sft \
     --model-path meta-llama/Meta-Llama-3.1-8B-Instruct/ \
     --dataset-paths /data/datas/LongMiT \
     --data-cache-dir ./datasetfiles \
