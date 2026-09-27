@@ -68,7 +68,7 @@ class CheckpointMixin:
         except Exception as e:
             import traceback, os
             os.makedirs("./err_logs", exist_ok = True)
-            with open(f"./err_logs/ray_worker_error_{os.getpid()}.log", "w") as f:
+            with open(f"./err_logs/rank{dist.get_rank()}_ray_worker_error_{os.getpid()}.log", "w") as f:
                 traceback.print_exc(file = f)
             raise e
 
